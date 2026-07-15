@@ -89,13 +89,13 @@
     const answered = db.candidates.filter(c => c.calls.some(x=>x.r==="ok")).length;
     const total = db.candidates.reduce((s,c)=>s+c.calls.length,0);
     const k = [
-      { l:"未架電", v:untouched, i:"⚪", c:"gray" },
-      { l:"要再架電（応答なし）", v:reCall, i:"🔁", c:"warn" },
-      { l:"応答あり", v:answered, i:"✅", c:"ok" },
-      { l:"累計架電回数", v:total, i:"📞", c:"info" },
+      { l:"未架電", v:untouched, i:"circle", c:"gray" },
+      { l:"要再架電（応答なし）", v:reCall, i:"refresh", c:"warn" },
+      { l:"応答あり", v:answered, i:"check", c:"ok" },
+      { l:"累計架電回数", v:total, i:"phone", c:"info" },
     ];
     document.getElementById("callKpi").innerHTML = k.map(x=>`
-      <div class="card kpi"><div class="kpi__icon" style="background:var(--${x.c==='gray'?'gray-soft':x.c+'-soft'});color:var(--${x.c==='gray'?'ink-3':x.c})">${x.i}</div>
+      <div class="card kpi"><div class="kpi__icon" style="background:var(--${x.c==='gray'?'gray-soft':x.c+'-soft'});color:var(--${x.c==='gray'?'ink-3':x.c})">${UI.icon(x.i,20)}</div>
       <div class="kpi__label">${x.l}</div><div class="kpi__value">${x.v}</div></div>`).join("");
 
     let list = db.candidates.filter(c => account==="all" || c.source===account);

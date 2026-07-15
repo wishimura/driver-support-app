@@ -19,11 +19,11 @@
 
       <div class="page-head">
         <div>
-          <h1>ドライバー管理</h1>
-          <p>契約 → 納車 → 研修 → 稼働 までのステータスを一元管理</p>
+          <h1>ドライバー</h1>
+          <p>候補者から採用された人の一覧。車両の割当は「車両」タブから行います</p>
         </div>
         <div class="page-head__actions">
-          <button class="btn btn--primary" onclick="openNew()">＋ ドライバーを追加</button>
+          <a class="btn" href="candidates.html?status=contract">採用済の候補者を見る</a>
         </div>
       </div>
 
@@ -80,13 +80,13 @@
   function render() {
     const cnt = k => db.drivers.filter(d=>d.status===k).length;
     const kpi = [
-      { l:"稼働中", v:cnt("active")+168, i:"🚚", c:"ok" },
-      { l:"納車待ち", v:cnt("waiting"), i:"⏳", c:"warn" },
-      { l:"研修中", v:cnt("training"), i:"📘", c:"purple" },
-      { l:"解除申請中", v:cnt("paused"), i:"⚠️", c:"danger" },
+      { l:"稼働中", v:cnt("active")+168, i:"truck", c:"ok" },
+      { l:"納車待ち", v:cnt("waiting"), i:"clock", c:"warn" },
+      { l:"研修中", v:cnt("training"), i:"book", c:"purple" },
+      { l:"解除申請中", v:cnt("paused"), i:"alert", c:"danger" },
     ];
     document.getElementById("drvKpi").innerHTML = kpi.map(x=>`
-      <div class="card kpi"><div class="kpi__icon" style="background:var(--${x.c}-soft);color:var(--${x.c})">${x.i}</div>
+      <div class="card kpi"><div class="kpi__icon" style="background:var(--${x.c}-soft);color:var(--${x.c})">${UI.icon(x.i,20)}</div>
       <div class="kpi__label">${x.l}</div><div class="kpi__value">${x.v}</div></div>`).join("");
 
     let list = db.drivers.filter(d => (tab==="all"||d.status===tab) && (company==="all"||d.company===company));
@@ -105,37 +105,6 @@
       </tr>`;
     }).join("") : `<tr><td colspan="7"><div class="empty"><div class="ico">🚚</div><p>該当するドライバーがいません</p></div></td></tr>`;
   }
-
-  window.openNew = function() {
-    const opts = db.companies.map(co => `<option value="${co.id}">${co.name}</option>`).join("");
-    Modal.open(`
-      <div class="modal__head"><h3>ドライバーを追加（既存ドライバーの登録など）</h3><span class="close" data-close>×</span></div>
-      <div class="modal__body">
-        <div class="form-grid">
-          <label class="fld"><span>氏名</span><input class="input" id="n_name"></label>
-          <label class="fld"><span>年齢</span><input class="input" type="number" id="n_age"></label>
-          <label class="fld"><span>会社</span><select class="input" id="n_co">${opts}</select></label>
-          <label class="fld"><span>経験</span><select class="input" id="n_exp"><option value="true">経験者</option><option value="false">未経験</option></select></label>
-          <label class="fld"><span>契約日</span><input class="input" type="date" id="n_ct" value="2026-07-15"></label>
-          <label class="fld"><span>ステータス</span><select class="input" id="n_st">
-            <option value="active">稼働中（既存）</option><option value="waiting">納車待ち</option></select></label>
-        </div>
-      </div>
-      <div class="modal__foot"><button class="btn" data-close>キャンセル</button><button class="btn btn--primary" onclick="saveNew()">追加する</button></div>
-    `);
-  };
-  window.saveNew = function() {
-    const g = id => document.getElementById(id).value;
-    if (!g("n_name")) { Toast.show("氏名を入力してください","warn"); return; }
-    const st = g("n_st");
-    db.drivers.unshift({
-      id:"drv_"+Math.random().toString(36).slice(2,7), name:g("n_name"), kana:"", age:+g("n_age")||0, company:g("n_co"),
-      exp:g("n_exp")==="true", status:st, contractedAt:g("n_ct"), deliveryDate:st==="active"?g("n_ct"):null,
-      delivered:st==="active", trainingDate:null, trainingDone:st==="active", startDate:st==="active"?g("n_ct"):null,
-      vehicle:null, tel:"", cancelAt:null, cancelEffectiveAt:null
-    });
-    DB.save(db); Modal.close(); render(); Toast.show("ドライバーを追加しました");
-  };
 
   render();
 </script>

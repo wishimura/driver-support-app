@@ -58,12 +58,12 @@
     const upcoming = all.filter(c => !c.interview.result);
     const done = all.filter(c => c.interview.result);
     const k = [
-      { l:"面接予定", v:upcoming.length, i:"📅", c:"purple" },
-      { l:"合格（契約待ち含む）", v:all.filter(c=>c.interview.result==="pass").length + db.drivers.length, i:"✅", c:"ok" },
-      { l:"今週の面接", v:upcoming.length, i:"🤝", c:"info" },
+      { l:"面接予定", v:upcoming.length, i:"calendar", c:"purple" },
+      { l:"合格（契約待ち含む）", v:all.filter(c=>c.interview.result==="pass").length + db.drivers.length, i:"check", c:"ok" },
+      { l:"今週の面接", v:upcoming.length, i:"handshake", c:"info" },
     ];
     document.getElementById("ivKpi").innerHTML = k.map(x=>`
-      <div class="card kpi"><div class="kpi__icon" style="background:var(--${x.c}-soft);color:var(--${x.c})">${x.i}</div>
+      <div class="card kpi"><div class="kpi__icon" style="background:var(--${x.c}-soft);color:var(--${x.c})">${UI.icon(x.i,20)}</div>
       <div class="kpi__label">${x.l}</div><div class="kpi__value">${x.v}</div></div>`).join("");
 
     let list = tab==="upcoming" ? upcoming : tab==="done" ? done : all;

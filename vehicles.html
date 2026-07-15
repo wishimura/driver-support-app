@@ -78,13 +78,13 @@
   function render() {
     const cnt = k => db.vehicles.filter(v=>v.status===k).length;
     const kpi = [
-      { l:"稼働中", v:cnt("active")+185, i:"🚐", c:"ok" },
-      { l:"空き", v:cnt("idle"), i:"🅿️", c:"info" },
-      { l:"修理中", v:cnt("repair"), i:"🔧", c:"warn" },
-      { l:"今月の新規リース", v:12, i:"🆕", c:"purple" },
+      { l:"稼働中", v:cnt("active")+185, i:"truck", c:"ok" },
+      { l:"空き", v:cnt("idle"), i:"parking", c:"info" },
+      { l:"修理中", v:cnt("repair"), i:"wrench", c:"warn" },
+      { l:"今月の新規リース", v:12, i:"star", c:"purple" },
     ];
     document.getElementById("vehKpi").innerHTML = kpi.map(x=>`
-      <div class="card kpi"><div class="kpi__icon" style="background:var(--${x.c}-soft);color:var(--${x.c})">${x.i}</div>
+      <div class="card kpi"><div class="kpi__icon" style="background:var(--${x.c}-soft);color:var(--${x.c})">${UI.icon(x.i,20)}</div>
       <div class="kpi__label">${x.l}</div><div class="kpi__value">${x.v}</div></div>`).join("");
 
     let list = db.vehicles.filter(v => (tab==="all"||v.status===tab) && (lessor==="all"||v.lessor===lessor));

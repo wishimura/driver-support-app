@@ -38,18 +38,31 @@
         <div><h1 style="margin:0">${v.plate}</h1><p style="margin:0">${v.model}・${v.lessor}</p></div>
         <div class="page-head__actions">
           ${UI.vehicleBadge(v.status)}
-          ${actionBtns()}
+          <button class="btn btn--primary" onclick="openLog()">＋ 操作・ログを記録</button>
         </div>
       </div>
 
       <div class="grid" style="grid-template-columns:1.5fr 1fr;gap:16px;align-items:start">
         <div class="grid" style="gap:16px">
           <div class="card">
-            <div class="card__head"><h3>🕒 車両ログ</h3><button class="btn btn--sm" onclick="openLog()">＋ ログを追加</button></div>
+            <div class="card__head"><h3>車両ログ</h3><button class="btn btn--sm" onclick="openLog()">＋ 記録</button></div>
             <div class="card__body" id="tl"></div>
           </div>
         </div>
         <div class="grid" style="gap:16px">
+          <div class="card">
+            <div class="card__head"><h3>乗車ドライバー</h3></div>
+            <div class="card__body">
+              ${drv ? `<div class="person mb-16">${UI.avatar(drv.name)}<div><b>${drv.name}</b><div class="muted small">${DB.company(db,drv.company).name}</div></div></div>
+                <div class="row wrap">
+                  <a class="btn btn--sm" href="driver-detail.html?id=${drv.id}">詳細 →</a>
+                  <button class="btn btn--sm" onclick="openLog('assign')">変更</button>
+                  <button class="btn btn--sm btn--danger" onclick="openLog('unassign')">割当を解除</button>
+                </div>`
+                : `<div class="empty small" style="padding:16px">現在、乗車ドライバーはいません<br>
+                   <button class="btn btn--sm btn--primary mt-8" onclick="openLog('assign')">＋ ドライバーを割り当てる</button></div>`}
+            </div>
+          </div>
           <div class="card">
             <div class="card__head"><h3>リース情報</h3></div>
             <div class="card__body"><dl class="dl">
@@ -58,14 +71,6 @@
               <dt>終了日</dt><dd>${v.leaseEnd}</dd>
               <dt>月額</dt><dd>${UI.money(v.monthly)}</dd>
             </dl></div>
-          </div>
-          <div class="card">
-            <div class="card__head"><h3>乗車ドライバー</h3></div>
-            <div class="card__body">
-              ${drv ? `<div class="person mb-16">${UI.avatar(drv.name)}<div><b>${drv.name}</b><div class="muted small">${DB.company(db,drv.company).name}</div></div></div>
-                <a class="btn btn--sm" href="driver-detail.html?id=${drv.id}">ドライバー詳細 →</a>`
-                : `<div class="empty small">現在、乗車ドライバーはいません</div>`}
-            </div>
           </div>
           ${v.repairFrom ? `<div class="card">
             <div class="card__head"><h3>直近の修理</h3></div>
@@ -80,13 +85,6 @@
     renderTl();
   }
 
-  function actionBtns() {
-    if (v.status === "active") return `<button class="btn btn--danger" onclick="markReturn()">↩️ 返却する</button>`;
-    if (v.status === "returned") return `<button class="btn btn--primary" onclick="openRepair()">🔧 修理へ出す</button>`;
-    if (v.status === "repair") return `<button class="btn btn--primary" onclick="doneRepair()">✓ 修理完了</button>`;
-    return "";
-  }
-
   function renderTl() {
     const items = [...v.logs].sort((a,b)=> (a.at||"").localeCompare(b.at||""));
     document.getElementById("tl").innerHTML = items.length ? `<div class="timeline">` + items.map(i=>
@@ -94,58 +92,98 @@
       : `<div class="empty small">ログはまだありません</div>`;
   }
 
-  window.markReturn = function() {
-    if (v.driver) { const drv = DB.driver(db,v.driver); if (drv) drv.vehicle = null; }
-    v.driver = null; v.status = "returned";
-    addLog("gray","車両を返却","ドライバー割当を解除");
-    persist(); render(); Toast.show("返却済にしました","warn");
-  };
-  window.openRepair = function() {
+  // ---- 統合アクション（割当・解除・修理・メモ）＋コメント ----
+  let drvCombo = null, pickedDriver = "";
+  window.openLog = function(preset) {
+    const assigned = !!v.driver;
+    const opts = [
+      { v:"memo", t:"メモ" },
+      { v:"assign", t: assigned ? "ドライバーを変更" : "ドライバーを割当" },
+      assigned ? { v:"unassign", t:"ドライバーを解除" } : null,
+      { v:"repair_in", t:"修理へ出す" },
+      v.status === "repair" ? { v:"repair_out", t:"修理完了（入庫解除）" } : null,
+    ].filter(Boolean);
+    const def = preset && opts.some(o=>o.v===preset) ? preset : "memo";
     Modal.open(`
-      <div class="modal__head"><h3>修理工場へ出す</h3><span class="close" data-close>×</span></div>
-      <div class="modal__body"><div class="form-grid">
-        <label class="fld"><span>入庫日</span><input class="input" type="date" id="rf" value="2026-07-15"></label>
-        <label class="fld"><span>出庫予定日</span><input class="input" type="date" id="rt" value="2026-07-25"></label>
-        <label class="fld span-2"><span>見積費用</span><input class="input" type="number" id="rc" value="60000"></label>
-      </div></div>
-      <div class="modal__foot"><button class="btn" data-close>キャンセル</button><button class="btn btn--primary" onclick="saveRepair()">修理登録</button></div>
+      <div class="modal__head"><h3>操作・ログを記録</h3><span class="close" data-close>×</span></div>
+      <div class="modal__body">
+        <label class="fld mb-16"><span>操作</span>
+          <select class="input" id="op" style="width:100%">${opts.map(o=>`<option value="${o.v}"${o.v===def?' selected':''}>${o.t}</option>`).join("")}</select></label>
+        <div class="fld mb-16" id="sec_assign" hidden><span>割り当てるドライバー（採用者を検索）</span><div id="drvCombo"></div></div>
+        <div id="sec_repair" hidden>
+          <div class="form-grid mb-16">
+            <label class="fld"><span>入庫日</span><input class="input" type="date" id="rf" value="${TODAY}"></label>
+            <label class="fld"><span>出庫予定日</span><input class="input" type="date" id="rt" value="2026-07-25"></label>
+            <label class="fld span-2"><span>見積費用</span><input class="input" type="number" id="rc" value="60000"></label>
+          </div>
+        </div>
+        <label class="fld"><span>コメント</span><textarea class="input" id="cmt" rows="3" placeholder="例：田中さんへ納車。走行前点検OK。"></textarea></label>
+      </div>
+      <div class="modal__foot"><button class="btn" data-close>キャンセル</button><button class="btn btn--primary" onclick="saveOp()">記録する</button></div>
     `);
-  };
-  window.saveRepair = function() {
-    v.status = "repair"; v.repairFrom = document.getElementById("rf").value;
-    v.repairTo = document.getElementById("rt").value; v.repairCost = +document.getElementById("rc").value||0;
-    addLog("warn","修理工場へ入庫",`出庫予定 ${v.repairTo} ／ 見積 ${UI.money(v.repairCost)}`);
-    persist(); Modal.close(); render(); Toast.show("修理中に更新しました");
-  };
-  window.doneRepair = function() {
-    v.status = "idle";
-    addLog("ok","修理完了・空き車両へ","修理費用 "+UI.money(v.repairCost));
-    persist(); render(); Toast.show("修理完了。空き車両になりました");
+    pickedDriver = "";
+    const op = document.getElementById("op");
+    const toggle = () => {
+      const val = op.value;
+      document.getElementById("sec_assign").hidden = (val !== "assign");
+      document.getElementById("sec_repair").hidden = (val !== "repair_in");
+      if (val === "assign" && !drvCombo) initDriverCombo();
+    };
+    op.onchange = toggle; toggle();
   };
 
-  window.openLog = function() {
-    Modal.open(`
-      <div class="modal__head"><h3>車両ログを追加</h3><span class="close" data-close>×</span></div>
-      <div class="modal__body">
-        <label class="fld mb-16"><span>種別</span>
-          <select class="input" id="lg_t">
-            <option value="">メモ</option>
-            <option value="warn">点検・整備</option>
-            <option value="ok">対応完了</option>
-            <option value="gray">その他</option>
-          </select></label>
-        <label class="fld"><span>内容</span><textarea class="input" id="lg_b" rows="3" placeholder="例：オイル交換を実施。次回は3ヶ月後。"></textarea></label>
-      </div>
-      <div class="modal__foot"><button class="btn" data-close>キャンセル</button><button class="btn btn--primary" onclick="saveLog()">記録する</button></div>
-    `);
+  function initDriverCombo() {
+    const items = db.drivers.map(d => {
+      const cur = d.vehicle ? DB.vehicle(db, d.vehicle) : null;
+      return { value:d.id, label: d.name + (cur ? `（${cur.plate}）` : ""), swatch: UI.colorFor(d.name) };
+    });
+    drvCombo = Combo.create(document.getElementById("drvCombo"), {
+      items, value:"", placeholder:"名前で検索して選択",
+      onChange: v2 => { pickedDriver = v2; },
+    });
+  }
+
+  window.saveOp = function() {
+    const op = document.getElementById("op").value;
+    const cmt = document.getElementById("cmt").value.trim();
+    if (op === "assign") {
+      if (!pickedDriver) { Toast.show("ドライバーを選択してください","warn"); return; }
+      assignDriver(pickedDriver, cmt);
+    } else if (op === "unassign") {
+      const od = v.driver ? DB.driver(db, v.driver) : null;
+      if (od) od.vehicle = null;
+      addLog("gray","ドライバーを解除", (od?od.name+"｜":"") + (cmt||"割当を解除"));
+      v.driver = null; v.status = "idle";
+    } else if (op === "repair_in") {
+      v.status = "repair";
+      v.repairFrom = document.getElementById("rf").value;
+      v.repairTo = document.getElementById("rt").value;
+      v.repairCost = +document.getElementById("rc").value || 0;
+      addLog("warn","修理工場へ入庫", `出庫予定 ${v.repairTo} ／ 見積 ${UI.money(v.repairCost)}` + (cmt?`｜${cmt}`:""));
+    } else if (op === "repair_out") {
+      v.status = v.driver ? "active" : "idle";
+      addLog("ok","修理完了・出庫", `修理費用 ${UI.money(v.repairCost)}` + (cmt?`｜${cmt}`:""));
+    } else {
+      if (!cmt) { Toast.show("コメントを入力してください","warn"); return; }
+      addLog("", "メモ", cmt);
+    }
+    drvCombo = null; pickedDriver = "";
+    persist(); Modal.close(); render(); Toast.show("記録しました");
   };
-  window.saveLog = function() {
-    const b = document.getElementById("lg_b").value.trim();
-    if (!b) { Toast.show("内容を入力してください","warn"); return; }
-    const t = document.getElementById("lg_t");
-    addLog(t.value, t.options[t.selectedIndex].text, b);
-    persist(); Modal.close(); render(); Toast.show("ログを記録しました");
-  };
+
+  function assignDriver(drvId, comment) {
+    const nd = DB.driver(db, drvId);
+    if (!nd) return;
+    // このドライバーが別の車両に乗っていれば、そちらを解除
+    if (nd.vehicle && nd.vehicle !== v.id) {
+      const ov = DB.vehicle(db, nd.vehicle);
+      if (ov) { ov.driver = null; ov.status = "idle"; if (!ov.logs) ov.logs = []; ov.logs.push({ at:TODAY, dot:"gray", h:"ドライバーを解除（他車両へ異動）", body:nd.name, by:"佐々木" }); }
+    }
+    // この車両に別のドライバーがいれば解除
+    if (v.driver && v.driver !== drvId) { const od = DB.driver(db, v.driver); if (od) od.vehicle = null; }
+    v.driver = drvId; nd.vehicle = v.id; v.status = "active";
+    addLog("ok", "ドライバーを割当", nd.name + (comment ? `｜${comment}` : ""));
+  }
 </script>
 </body>
 </html>
