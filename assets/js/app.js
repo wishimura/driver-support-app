@@ -53,14 +53,14 @@
       if (topbar) {
         topbar.className = "topbar";
         topbar.innerHTML = `
-          <div class="hamburger topbar__icon" onclick="document.getElementById('sidebar').classList.toggle('open')">${icon("menu",20)}</div>
+          <div class="hamburger topbar__icon" onclick="App.toggleMenu()">${icon("menu",20)}</div>
           <div class="topbar__title">${opts.title || ""}${opts.sub ? `<small>${opts.sub}</small>` : ""}</div>
           <div class="topbar__spacer"></div>
           <div class="topbar__search">${icon("search",16)}<input placeholder="候補者・ドライバーを検索"></div>
-          <button class="btn btn--sm" onclick="App.reset()" title="サンプルデータを初期状態に戻します">${icon("refresh",15)} データ初期化</button>
-          <a class="topbar__icon" href="import.html" title="CSVインポート">${icon("download",19)}</a>
+          <button class="btn btn--sm reset-btn" onclick="App.reset()" title="サンプルデータを初期状態に戻します">${icon("refresh",15)}<span class="reset-label">データ初期化</span></button>
+          <a class="topbar__icon hide-sm" href="import.html" title="CSVインポート">${icon("download",19)}</a>
           <div class="topbar__icon" title="通知" onclick="Toast.show('新着の応募が3件あります')">${icon("bell",19)}<span class="dot"></span></div>
-          <div class="topbar__icon" title="設定">${icon("settings",19)}</div>`;
+          <div class="topbar__icon hide-sm" title="設定">${icon("settings",19)}</div>`;
       }
     }
   };
@@ -170,6 +170,14 @@
   };
 
   const App = {
+    toggleMenu() {
+      const sb = document.getElementById("sidebar");
+      if (!sb) return;
+      let bd = document.querySelector(".sidebar-backdrop");
+      if (!bd) { bd = document.createElement("div"); bd.className = "sidebar-backdrop"; bd.onclick = () => App.toggleMenu(); document.body.appendChild(bd); }
+      const open = sb.classList.toggle("open");
+      bd.classList.toggle("show", open);
+    },
     reset() {
       Modal.open(`
         <div class="modal__head"><h3>データを初期化しますか？</h3><span class="close" data-close>×</span></div>
