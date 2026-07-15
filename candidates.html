@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>候補者一覧｜ドラサポ</title>
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+<div class="layout">
+  <aside id="sidebar"></aside>
+  <div class="main">
+    <header id="topbar"></header>
+    <div class="content">
+      <div class="page-head">
+        <div>
+          <h1>候補者</h1>
+          <p>各求人アカウントから取り込んだ応募者を一元管理</p>
+        </div>
+        <div class="page-head__actions">
+          <a class="btn" href="import.html">📥 CSV取込</a>
+          <button class="btn btn--primary" onclick="openNew()">＋ 候補者を追加</button>
+        </div>
+      </div>
+
+      <!-- filters -->
+      <div class="filters">
+        <div class="seg" id="statusSeg">
+          <button data-st="all" class="is-active">すべて</button>
+          <button data-st="new">未対応</button>
+          <button data-st="calling">架電中</button>
+          <button data-st="interview">面接調整</button>
+          <button data-st="interviewed">面接済</button>
+          <button data-st="contract">契約</button>
+          <button data-st="ng">見送り</button>
+        </div>
+        <select class="input" id="fCompany"><option value="all">すべての会社</option></select>
+        <select class="input" id="fSource">
+          <option value="all">すべての媒体</option>
+          <option>Indeed</option><option>エアワーク</option><option>SNS</option>
+        </select>
+        <select class="input" id="fExp">
+          <option value="all">経験不問</option>
+          <option value="true">経験者のみ</option>
+          <option value="false">未経験のみ</option>
+        </select>
+        <div style="margin-left:auto" class="row">
+          <span class="muted small" id="count"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="table-wrap">
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th>候補者</th><th>年齢</th><th>エリア</th><th>経験</th>
+                <th>応募媒体 / 会社</th><th>架電状況</th><th>ステータス</th><th>応募日</th>
+              </tr>
+            </thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="assets/js/data.js"></script>
+<script src="assets/js/app.js"></script>
+<script>
+  Shell.init("candidates", { title: "候補者", sub: "採用パイプライン" });
+  const db = DB.get();
+  let f = { status: UI.qp("status") || "all", company:"all", source:"all", exp:"all" };
+
+  // company filter options
+  const cSel = document.getElementById("fCompany");
+  db.companies.forEach(co => cSel.insertAdjacentHTML("beforeend", `<option value="${co.id}">${co.name}</option>`));
+
+  function apply() {
+    // seg
+    document.querySelectorAll("#statusSeg button").forEach(b => b.classList.toggle("is-active", b.dataset.st === f.status));
+    let list = db.candidates.filter(c =>
+      (f.status === "all" || c.status === f.status) &&
+      (f.company === "all" || c.company === f.company) &&
+      (f.source === "all" || c.source === f.source) &&
+      (f.exp === "all" || String(c.exp) === f.exp)
+    );
+    document.getElementById("count").textContent = `${list.length} 件を表示`;
+    document.getElementById("rows").innerHTML = list.length ? list.map(c => {
+      const co = DB.company(db, c.company);
+      return `<tr onclick="location.href='candidate-detail.html?id=${c.id}'">
+        <td><div class="person">${UI.avatar(c.name)}
+          <div><div class="cell-main">${c.name}</div><div class="cell-sub">${c.kana}</div></div></div></td>
+        <td>${c.age}歳</td>
+        <td class="small">${c.area}</td>
+        <td>${c.exp ? '<span class="chip chip--brand">経験者</span>' : '<span class="chip">未経験</span>'}</td>
+        <td><div class="small" style="font-weight:700">${c.source}</div>
+          <span class="ctag"><span class="swatch" style="background:${co.color}"></span>${co.name}</span></td>
+        <td>${UI.callStages(c.calls)}</td>
+        <td>${UI.statusBadge(c.status)}</td>
+        <td class="small muted">${c.appliedAt.replace('2026-','')}</td>
+      </tr>`;
+    }).join("") : `<tr><td colspan="8"><div class="empty"><div class="ico">🗂️</div><p>該当する候補者がいません</p></div></td></tr>`;
+  }
+
+  document.querySelectorAll("#statusSeg button").forEach(b => b.onclick = () => { f.status = b.dataset.st; apply(); });
+  document.getElementById("fCompany").onchange = e => { f.company = e.target.value; apply(); };
+  document.getElementById("fSource").onchange = e => { f.source = e.target.value; apply(); };
+  document.getElementById("fExp").onchange = e => { f.exp = e.target.value; apply(); };
+  apply();
+
+  window.openNew = function() {
+    const opts = db.companies.map(co => `<option value="${co.id}">${co.name}</option>`).join("");
+    Modal.open(`
+      <div class="modal__head"><h3>候補者を追加</h3><span class="close" data-close>×</span></div>
+      <div class="modal__body">
+        <div class="form-grid">
+          <label class="fld"><span>氏名</span><input class="input" id="n_name" placeholder="山田 太郎"></label>
+          <label class="fld"><span>フリガナ</span><input class="input" id="n_kana" placeholder="ヤマダ タロウ"></label>
+          <label class="fld"><span>年齢</span><input class="input" id="n_age" type="number" placeholder="35"></label>
+          <label class="fld"><span>電話番号</span><input class="input" id="n_tel" placeholder="090-0000-0000"></label>
+          <label class="fld span-2"><span>住所</span><input class="input" id="n_area" placeholder="東京都◯◯区"></label>
+          <label class="fld"><span>会社（求人アカウント）</span><select class="input" id="n_co">${opts}</select></label>
+          <label class="fld"><span>応募媒体</span><select class="input" id="n_src"><option>Indeed</option><option>エアワーク</option><option>SNS</option></select></label>
+          <label class="fld span-2"><span>経験</span><select class="input" id="n_exp"><option value="false">未経験</option><option value="true">経験者</option></select></label>
+        </div>
+      </div>
+      <div class="modal__foot"><button class="btn" data-close>キャンセル</button><button class="btn btn--primary" onclick="saveNew()">追加する</button></div>
+    `);
+  };
+  window.saveNew = function() {
+    const g = id => document.getElementById(id).value;
+    if (!g("n_name")) { Toast.show("氏名を入力してください","warn"); return; }
+    db.candidates.unshift({
+      id: "cand_" + Math.random().toString(36).slice(2,8),
+      name: g("n_name"), kana: g("n_kana"), age: +g("n_age")||0, area: g("n_area"),
+      exp: g("n_exp")==="true", company: g("n_co"), status: "new", calls: [],
+      source: g("n_src"), tel: g("n_tel"), appliedAt: "2026-07-15", note:"", interview:null
+    });
+    DB.save(db); Modal.close(); apply(); Toast.show("候補者を追加しました");
+  };
+</script>
+</body>
+</html>

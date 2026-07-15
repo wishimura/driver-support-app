@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>荷主・会社｜ドラサポ</title>
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+<div class="layout">
+  <aside id="sidebar"></aside>
+  <div class="main">
+    <header id="topbar"></header>
+    <div class="content">
+      <div class="page-head">
+        <div>
+          <h1>荷主・会社</h1>
+          <p>荷主（佐川・ヤマト等）と、その下請けの「会社」＝求人アカウントを管理</p>
+        </div>
+        <div class="page-head__actions">
+          <button class="btn btn--primary" onclick="openNew()">＋ 会社を追加</button>
+        </div>
+      </div>
+
+      <div class="card mb-16" style="background:linear-gradient(90deg,var(--brand-soft),#fff)">
+        <div class="card__body row wrap" style="gap:22px">
+          <div><span class="muted small">用語</span><div><b>荷主</b> = 佐川・ヤマト等の元請け　→　<b>会社</b> = 荷主の下請け（自社が仕事をもらう単位／求人アカウント）　→　<b>ドライバー</b></div></div>
+        </div>
+      </div>
+
+      <div class="grid grid--3" id="shipperCards"></div>
+
+      <div class="card mt-16">
+        <div class="card__head"><h3>会社一覧（求人アカウント）</h3><span class="muted small" style="margin-left:auto" id="count"></span></div>
+        <div class="table-wrap">
+          <table class="tbl">
+            <thead><tr><th>会社</th><th>荷主</th><th>求人アカウント</th><th>稼働ドライバー</th><th>募集中</th></tr></thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="assets/js/data.js"></script>
+<script src="assets/js/app.js"></script>
+<script>
+  Shell.init("companies", { title: "荷主・会社" });
+  const db = DB.get();
+
+  function render() {
+    // shipper cards
+    document.getElementById("shipperCards").innerHTML = db.shippers.map(s => {
+      const cos = db.companies.filter(c=>c.shipper===s.id);
+      const drv = cos.reduce((a,c)=>a+c.drivers,0);
+      const open = cos.reduce((a,c)=>a+c.open,0);
+      return `<div class="card"><div class="card__body">
+        <div class="row mb-16"><span class="uavatar" style="background:${s.color}">${s.name[0]}</span>
+          <div><b style="font-size:16px">${s.name}</b><div class="muted small">荷主・元請け</div></div></div>
+        <div class="grid grid--3" style="gap:8px;text-align:center">
+          <div><div style="font-size:20px;font-weight:800">${cos.length}</div><div class="muted small">会社</div></div>
+          <div><div style="font-size:20px;font-weight:800">${drv}</div><div class="muted small">ドライバー</div></div>
+          <div><div style="font-size:20px;font-weight:800;color:var(--brand)">${open}</div><div class="muted small">募集中</div></div>
+        </div>
+      </div></div>`;
+    }).join("");
+
+    document.getElementById("count").textContent = `${db.companies.length} 社`;
+    document.getElementById("rows").innerHTML = db.companies.map(co => {
+      const sh = DB.shipper(db, co.shipper);
+      return `<tr>
+        <td><span class="ctag"><span class="swatch" style="background:${co.color}"></span><b>${co.name}</b></span></td>
+        <td><span class="ctag"><span class="swatch" style="background:${sh.color}"></span>${sh.name}</span></td>
+        <td>${co.account.split(/[\/／]/).map(a=>`<span class="chip">${a.trim()}</span>`).join(" ")}</td>
+        <td><b>${co.drivers}</b>名</td>
+        <td>${co.open ? `<span class="badge badge--info"><span class="dot"></span>${co.open}件募集中</span>` : '<span class="muted small">—</span>'}</td>
+      </tr>`;
+    }).join("");
+  }
+
+  window.openNew = function() {
+    const shOpts = db.shippers.map(s=>`<option value="${s.id}">${s.name}</option>`).join("");
+    Modal.open(`
+      <div class="modal__head"><h3>会社を追加</h3><span class="close" data-close>×</span></div>
+      <div class="modal__body"><div class="form-grid">
+        <label class="fld span-2"><span>会社名</span><input class="input" id="n_name" placeholder="◯◯運送 第一営業所"></label>
+        <label class="fld"><span>荷主</span><select class="input" id="n_sh">${shOpts}</select></label>
+        <label class="fld"><span>募集中件数</span><input class="input" type="number" id="n_open" value="3"></label>
+        <label class="fld span-2"><span>求人アカウント（媒体）</span><input class="input" id="n_acc" placeholder="Indeed / エアワーク"></label>
+      </div></div>
+      <div class="modal__foot"><button class="btn" data-close>キャンセル</button><button class="btn btn--primary" onclick="saveNew()">追加する</button></div>
+    `);
+  };
+  window.saveNew = function() {
+    const g = id => document.getElementById(id).value;
+    if (!g("n_name")) { Toast.show("会社名を入力してください","warn"); return; }
+    const palette = ["#1f6feb","#17915c","#c47f04","#7b52d6","#d1443b","#0f9b9b","#e0692b"];
+    db.companies.push({ id:"co_"+Math.random().toString(36).slice(2,7), name:g("n_name"), shipper:g("n_sh"),
+      color:palette[db.companies.length % palette.length], account:g("n_acc")||"Indeed", drivers:0, open:+g("n_open")||0 });
+    DB.save(db); Modal.close(); render(); Toast.show("会社を追加しました");
+  };
+
+  render();
+</script>
+</body>
+</html>

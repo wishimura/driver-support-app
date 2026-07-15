@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>スケジュール｜ドラサポ</title>
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+<div class="layout">
+  <aside id="sidebar"></aside>
+  <div class="main">
+    <header id="topbar"></header>
+    <div class="content">
+      <div class="page-head">
+        <div>
+          <h1>スケジュール</h1>
+          <p>面接・架電・納車・研修・商談の予定（Googleカレンダー連携イメージ）</p>
+        </div>
+        <div class="page-head__actions">
+          <span class="chip chip--brand">📅 Googleカレンダー 連携中</span>
+        </div>
+      </div>
+
+      <div class="legend mb-16">
+        <span><i style="background:var(--purple)"></i>面接</span>
+        <span><i style="background:var(--brand)"></i>架電</span>
+        <span><i style="background:var(--warn)"></i>商談</span>
+        <span><i style="background:var(--ok)"></i>納車</span>
+        <span><i style="background:var(--info)"></i>研修</span>
+      </div>
+
+      <div class="grid" style="grid-template-columns: 1fr 320px; gap:16px; align-items:start">
+        <div class="card">
+          <div class="card__head">
+            <h3 id="monTitle">2026年 7月</h3>
+            <div class="row" style="margin-left:auto;gap:6px">
+              <span class="chip">今週</span>
+            </div>
+          </div>
+          <div class="card__body">
+            <div class="mini-cal" id="cal"></div>
+          </div>
+        </div>
+
+        <div class="grid" style="gap:16px">
+          <div class="card">
+            <div class="card__head"><h3 id="dayTitle">7月15日の予定</h3></div>
+            <div class="card__body" id="dayEvents" style="padding-top:8px"></div>
+          </div>
+          <div class="card">
+            <div class="card__head"><h3>今後の予定</h3></div>
+            <div class="card__body" id="upcoming" style="padding-top:8px"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="assets/js/data.js"></script>
+<script src="assets/js/app.js"></script>
+<script>
+  Shell.init("schedule", { title: "スケジュール" });
+  const db = DB.get();
+  const today = "2026-07-15";
+  let selected = today;
+
+  const evColor = { interview:"var(--purple)", call:"var(--brand)", negotiation:"var(--warn)", delivery:"var(--ok)", training:"var(--info)" };
+  const evIcon = { interview:"🤝", call:"📞", negotiation:"💬", delivery:"🚚", training:"📘" };
+  const evName = { interview:"面接", call:"架電", negotiation:"商談", delivery:"納車", training:"研修" };
+
+  function eventsOn(date){ return db.schedule.filter(e=>e.date===date).sort((a,b)=>a.time.localeCompare(b.time)); }
+
+  function renderCal() {
+    // July 2026: 1st is Wednesday (0=Sun). Check: 2026-07-01
+    const firstDow = new Date("2026-07-01T00:00:00").getDay();
+    const daysInMonth = 31;
+    const dows = ["日","月","火","水","木","金","土"];
+    let html = dows.map(d=>`<div class="dow">${d}</div>`).join("");
+    for (let i=0;i<firstDow;i++) html += `<div class="day muted"></div>`;
+    for (let d=1; d<=daysInMonth; d++) {
+      const date = `2026-07-${String(d).padStart(2,"0")}`;
+      const evs = eventsOn(date);
+      const isToday = date === today;
+      const isSel = date === selected;
+      const bars = evs.slice(0,3).map(e=>`<span style="display:block;height:3px;border-radius:2px;margin-top:2px;background:${evColor[e.type]}"></span>`).join("");
+      html += `<div class="day ${isToday?'today':''}" style="cursor:pointer;${isSel&&!isToday?'border-color:var(--brand)':''}" onclick="select('${date}')">
+        <div style="font-weight:${isToday?800:600}">${d}</div>${bars}
+        ${evs.length>3?`<div style="font-size:9px;color:var(--ink-3)">+${evs.length-3}</div>`:''}</div>`;
+    }
+    document.getElementById("cal").innerHTML = html;
+  }
+
+  function renderDay() {
+    const d = +selected.split("-")[2];
+    document.getElementById("dayTitle").textContent = `7月${d}日の予定`;
+    const evs = eventsOn(selected);
+    document.getElementById("dayEvents").innerHTML = evs.length ? evs.map(e=>`
+      <div class="row" style="padding:9px 0;border-bottom:1px solid var(--line-2);gap:10px">
+        <div style="width:4px;align-self:stretch;border-radius:3px;background:${evColor[e.type]}"></div>
+        <div style="width:42px;font-weight:800;color:${evColor[e.type]}">${e.time}</div>
+        <div style="flex:1"><div style="font-weight:700">${evIcon[e.type]} ${e.title}</div>
+          <div class="muted small">${e.who}${e.mode?' ・ '+e.mode:''}</div></div>
+      </div>`).join("") : `<div class="empty small">予定はありません</div>`;
+  }
+
+  function renderUpcoming() {
+    const list = db.schedule.filter(e=>e.date>=today).sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time)).slice(0,8);
+    document.getElementById("upcoming").innerHTML = list.map(e=>`
+      <div class="row" style="padding:8px 0;border-bottom:1px solid var(--line-2);gap:10px">
+        <span class="badge badge--gray" style="min-width:52px;justify-content:center">${e.date.replace('2026-','')}</span>
+        <div style="flex:1"><div class="small" style="font-weight:700">${evIcon[e.type]} ${e.title}</div>
+          <div class="muted small">${e.time}・${evName[e.type]}</div></div>
+      </div>`).join("");
+  }
+
+  window.select = function(date){ selected = date; renderCal(); renderDay(); };
+
+  renderCal(); renderDay(); renderUpcoming();
+</script>
+</body>
+</html>

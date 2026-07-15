@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>車両詳細｜ドラサポ</title>
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+<div class="layout">
+  <aside id="sidebar"></aside>
+  <div class="main">
+    <header id="topbar"></header>
+    <div class="content" id="content"></div>
+  </div>
+</div>
+
+<script src="assets/js/data.js"></script>
+<script src="assets/js/app.js"></script>
+<script>
+  Shell.init("vehicles", { title: "車両詳細" });
+  const db = DB.get();
+  const id = UI.qp("id");
+  let v = db.vehicles.find(x => x.id === id);
+  const content = document.getElementById("content");
+  const logs = [];
+  v ? render() : content.innerHTML = `<div class="empty"><div class="ico">🔍</div><p>車両が見つかりません</p><a class="btn mt-16" href="vehicles.html">一覧へ</a></div>`;
+
+  function persist(){ DB.save(db); }
+
+  function render() {
+    const drv = v.driver ? DB.driver(db, v.driver) : null;
+    content.innerHTML = `
+      <div class="breadcrumb"><a href="vehicles.html">車両管理</a> › ${v.plate}</div>
+      <div class="page-head">
+        <div><h1 style="margin:0">${v.plate}</h1><p style="margin:0">${v.model}・${v.lessor}</p></div>
+        <div class="page-head__actions">
+          ${UI.vehicleBadge(v.status)}
+          ${actionBtns()}
+        </div>
+      </div>
+
+      <div class="grid" style="grid-template-columns:1.5fr 1fr;gap:16px;align-items:start">
+        <div class="grid" style="gap:16px">
+          <div class="card">
+            <div class="card__head"><h3>🕒 車両ログ</h3></div>
+            <div class="card__body" id="tl"></div>
+          </div>
+        </div>
+        <div class="grid" style="gap:16px">
+          <div class="card">
+            <div class="card__head"><h3>リース情報</h3></div>
+            <div class="card__body"><dl class="dl">
+              <dt>リース元</dt><dd>${v.lessor}</dd>
+              <dt>開始日</dt><dd>${v.leaseStart}</dd>
+              <dt>終了日</dt><dd>${v.leaseEnd}</dd>
+              <dt>月額</dt><dd>${UI.money(v.monthly)}</dd>
+            </dl></div>
+          </div>
+          <div class="card">
+            <div class="card__head"><h3>乗車ドライバー</h3></div>
+            <div class="card__body">
+              ${drv ? `<div class="person mb-16">${UI.avatar(drv.name)}<div><b>${drv.name}</b><div class="muted small">${DB.company(db,drv.company).name}</div></div></div>
+                <a class="btn btn--sm" href="driver-detail.html?id=${drv.id}">ドライバー詳細 →</a>`
+                : `<div class="empty small">現在、乗車ドライバーはいません</div>`}
+            </div>
+          </div>
+          ${v.repairFrom ? `<div class="card">
+            <div class="card__head"><h3>直近の修理</h3></div>
+            <div class="card__body"><dl class="dl">
+              <dt>入庫</dt><dd>${v.repairFrom}</dd>
+              <dt>出庫</dt><dd>${v.repairTo||"作業中"}</dd>
+              <dt>費用</dt><dd>${UI.money(v.repairCost)}</dd>
+            </dl></div></div>` : ""}
+        </div>
+      </div>
+    `;
+    renderTl();
+  }
+
+  function actionBtns() {
+    if (v.status === "active") return `<button class="btn btn--danger" onclick="markReturn()">↩️ 返却する</button>`;
+    if (v.status === "returned") return `<button class="btn btn--primary" onclick="openRepair()">🔧 修理へ出す</button>`;
+    if (v.status === "repair") return `<button class="btn btn--primary" onclick="doneRepair()">✓ 修理完了</button>`;
+    return "";
+  }
+
+  function renderTl() {
+    const items = [];
+    items.push({ dot:"", h:"リース開始", m:v.leaseStart, body:`${v.lessor} ／ 月額 ${UI.money(v.monthly)}` });
+    if (v.driver) { const drv = DB.driver(db,v.driver); items.push({ dot:"ok", h:"ドライバー割当・稼働開始", m:v.leaseStart, body: drv? drv.name : "" }); }
+    if (v.repairFrom) items.push({ dot:"warn", h:"修理工場へ入庫", m:v.repairFrom });
+    if (v.repairTo) items.push({ dot:"ok", h:"修理完了・出庫", m:v.repairTo, body:`費用 ${UI.money(v.repairCost)}` });
+    if (v.status === "returned") items.push({ dot:"gray", h:"返却済", m:"2026-07-15" });
+    logs.forEach(l=>items.push(l));
+    document.getElementById("tl").innerHTML = `<div class="timeline">` + items.reverse().map(i=>
+      `<div class="tl-item"><span class="tl-dot ${i.dot}"></span><h4>${i.h}</h4><div class="tl-meta">${i.m}</div>${i.body?`<div class="tl-body">${i.body}</div>`:''}</div>`).join("") + `</div>`;
+  }
+
+  window.markReturn = function() {
+    if (v.driver) { const drv = DB.driver(db,v.driver); if (drv) drv.vehicle = null; }
+    v.driver = null; v.status = "returned";
+    logs.push({dot:"gray",h:"車両を返却",m:"2026-07-15",body:"ドライバー割当を解除"});
+    persist(); render(); Toast.show("返却済にしました","warn");
+  };
+  window.openRepair = function() {
+    Modal.open(`
+      <div class="modal__head"><h3>修理工場へ出す</h3><span class="close" data-close>×</span></div>
+      <div class="modal__body"><div class="form-grid">
+        <label class="fld"><span>入庫日</span><input class="input" type="date" id="rf" value="2026-07-15"></label>
+        <label class="fld"><span>出庫予定日</span><input class="input" type="date" id="rt" value="2026-07-25"></label>
+        <label class="fld span-2"><span>見積費用</span><input class="input" type="number" id="rc" value="60000"></label>
+      </div></div>
+      <div class="modal__foot"><button class="btn" data-close>キャンセル</button><button class="btn btn--primary" onclick="saveRepair()">修理登録</button></div>
+    `);
+  };
+  window.saveRepair = function() {
+    v.status = "repair"; v.repairFrom = document.getElementById("rf").value;
+    v.repairTo = document.getElementById("rt").value; v.repairCost = +document.getElementById("rc").value||0;
+    logs.push({dot:"warn",h:"修理工場へ入庫",m:v.repairFrom,body:"出庫予定 "+v.repairTo});
+    persist(); Modal.close(); render(); Toast.show("修理中に更新しました");
+  };
+  window.doneRepair = function() {
+    v.status = "idle";
+    logs.push({dot:"ok",h:"修理完了・空き車両へ",m:"2026-07-15",body:"費用 "+UI.money(v.repairCost)});
+    persist(); render(); Toast.show("修理完了。空き車両になりました");
+  };
+</script>
+</body>
+</html>

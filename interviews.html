@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>面接管理｜ドラサポ</title>
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+<div class="layout">
+  <aside id="sidebar"></aside>
+  <div class="main">
+    <header id="topbar"></header>
+    <div class="content">
+      <div class="page-head">
+        <div>
+          <h1>面接管理</h1>
+          <p>面接の予定・実施結果を管理（来社／リモート・Googleカレンダー連携）</p>
+        </div>
+      </div>
+
+      <div class="grid grid--3 mb-16" id="ivKpi"></div>
+
+      <div class="filters">
+        <div class="seg" id="tab">
+          <button data-t="upcoming" class="is-active">予定</button>
+          <button data-t="done">実施済</button>
+          <button data-t="all">すべて</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="table-wrap">
+          <table class="tbl">
+            <thead><tr>
+              <th>候補者</th><th>会社</th><th>面接日時</th><th>方法</th><th>結果</th><th>操作</th>
+            </tr></thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="assets/js/data.js"></script>
+<script src="assets/js/app.js"></script>
+<script>
+  Shell.init("interviews", { title: "面接管理" });
+  const db = DB.get();
+  let tab = "upcoming";
+  document.querySelectorAll("#tab button").forEach(b => b.onclick = () => { tab = b.dataset.t; document.querySelectorAll("#tab button").forEach(x=>x.classList.toggle("is-active",x===b)); render(); });
+
+  function withIv() { return db.candidates.filter(c => c.interview); }
+
+  function render() {
+    const all = withIv();
+    const upcoming = all.filter(c => !c.interview.result);
+    const done = all.filter(c => c.interview.result);
+    const k = [
+      { l:"面接予定", v:upcoming.length, i:"📅", c:"purple" },
+      { l:"合格（契約待ち含む）", v:all.filter(c=>c.interview.result==="pass").length + db.drivers.length, i:"✅", c:"ok" },
+      { l:"今週の面接", v:upcoming.length, i:"🤝", c:"info" },
+    ];
+    document.getElementById("ivKpi").innerHTML = k.map(x=>`
+      <div class="card kpi"><div class="kpi__icon" style="background:var(--${x.c}-soft);color:var(--${x.c})">${x.i}</div>
+      <div class="kpi__label">${x.l}</div><div class="kpi__value">${x.v}</div></div>`).join("");
+
+    let list = tab==="upcoming" ? upcoming : tab==="done" ? done : all;
+    list = list.sort((a,b)=> (a.interview.date+a.interview.time).localeCompare(b.interview.date+b.interview.time));
+
+    document.getElementById("rows").innerHTML = list.length ? list.map(c => {
+      const co = DB.company(db, c.company);
+      const iv = c.interview;
+      return `<tr>
+        <td onclick="location.href='candidate-detail.html?id=${c.id}'"><div class="person">${UI.avatar(c.name)}
+          <div><div class="cell-main">${c.name}</div><div class="cell-sub">${c.age}歳・${c.exp?'経験者':'未経験'}</div></div></div></td>
+        <td><span class="ctag"><span class="swatch" style="background:${co.color}"></span>${co.name}</span></td>
+        <td><b>${iv.date}</b> <span class="muted">${iv.time}</span></td>
+        <td>${iv.mode==="来社"?UI.badge("info","来社"):UI.badge("purple","リモート")}</td>
+        <td>${iv.result ? (iv.result==="pass"?UI.badge("ok","合格"):UI.badge("danger","不合格")) : UI.badge("gray","結果待ち")}</td>
+        <td>${!iv.result
+          ? `<button class="btn btn--sm btn--primary" onclick="res('${c.id}')">結果を記録</button>`
+          : iv.result==="pass" && c.status!=="contract"
+          ? `<a class="btn btn--sm" href="candidate-detail.html?id=${c.id}">契約へ →</a>`
+          : `<a class="btn btn--sm" href="candidate-detail.html?id=${c.id}">詳細</a>`}</td>
+      </tr>`;
+    }).join("") : `<tr><td colspan="6"><div class="empty"><div class="ico">🤝</div><p>該当する面接はありません</p></div></td></tr>`;
+  }
+
+  window.res = function(cid) {
+    const c = db.candidates.find(x=>x.id===cid);
+    Modal.open(`
+      <div class="modal__head"><h3>${c.name}｜面接結果</h3><span class="close" data-close>×</span></div>
+      <div class="modal__body">
+        <div class="row mb-16"><span class="chip">${c.interview.date} ${c.interview.time}</span><span class="chip">${c.interview.mode}</span></div>
+        <label class="fld mb-16"><span>結果</span>
+          <select class="input" id="r"><option value="pass">合格（契約へ）</option><option value="fail">不合格（見送り）</option></select></label>
+        <label class="fld"><span>所感</span><textarea class="input" id="m" rows="3"></textarea></label>
+      </div>
+      <div class="modal__foot"><button class="btn" data-close>キャンセル</button><button class="btn btn--primary" onclick="saveRes('${cid}')">記録する</button></div>
+    `);
+  };
+  window.saveRes = function(cid) {
+    const c = db.candidates.find(x=>x.id===cid);
+    const r = document.getElementById("r").value;
+    c.interview.result = r; c.interview.memo = document.getElementById("m").value;
+    c.status = r==="pass" ? "interviewed" : "ng";
+    DB.save(db); Modal.close(); render();
+    Toast.show(r==="pass"?"合格を記録しました":"見送りにしました", r==="pass"?"ok":"warn");
+  };
+
+  render();
+</script>
+</body>
+</html>

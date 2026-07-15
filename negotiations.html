@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>商談ログ｜ドラサポ</title>
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+<div class="layout">
+  <aside id="sidebar"></aside>
+  <div class="main">
+    <header id="topbar"></header>
+    <div class="content">
+      <div class="page-head">
+        <div>
+          <h1>商談ログ</h1>
+          <p>荷主・会社ごとに「いつ・誰と・何を話したか」を記録</p>
+        </div>
+        <div class="page-head__actions">
+          <button class="btn btn--primary" onclick="openNew()">＋ 商談を記録</button>
+        </div>
+      </div>
+
+      <div class="filters">
+        <select class="input" id="fShipper"><option value="all">すべての荷主</option></select>
+        <select class="input" id="fCompany"><option value="all">すべての会社</option></select>
+        <div class="row" style="margin-left:auto"><span class="muted small" id="count"></span></div>
+      </div>
+
+      <div class="grid" style="grid-template-columns: 1fr 300px; gap:16px; align-items:start">
+        <div class="card">
+          <div class="card__head"><h3>商談履歴</h3></div>
+          <div class="card__body" id="list"></div>
+        </div>
+        <div class="grid" style="gap:16px">
+          <div class="card">
+            <div class="card__head"><h3>要フォロー</h3></div>
+            <div class="card__body" id="follow" style="padding-top:8px"></div>
+          </div>
+          <div class="card">
+            <div class="card__head"><h3>荷主別 商談数</h3></div>
+            <div class="card__body" id="byShipper" style="padding-top:8px"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="assets/js/data.js"></script>
+<script src="assets/js/app.js"></script>
+<script>
+  Shell.init("negotiations", { title: "商談ログ" });
+  const db = DB.get();
+  let shipper = "all", company = "all";
+  const shSel = document.getElementById("fShipper"), coSel = document.getElementById("fCompany");
+  db.shippers.forEach(s => shSel.insertAdjacentHTML("beforeend", `<option value="${s.id}">${s.name}</option>`));
+  db.companies.forEach(c => coSel.insertAdjacentHTML("beforeend", `<option value="${c.id}">${c.name}</option>`));
+  shSel.onchange = e => { shipper = e.target.value; render(); };
+  coSel.onchange = e => { company = e.target.value; render(); };
+
+  function render() {
+    let list = db.negotiations.filter(n => (shipper==="all"||n.shipper===shipper) && (company==="all"||n.company===company))
+      .sort((a,b)=> b.date.localeCompare(a.date));
+    document.getElementById("count").textContent = `${list.length} 件`;
+
+    document.getElementById("list").innerHTML = list.length ? `<div class="timeline">` + list.map(n => {
+      const co = DB.company(db, n.company), sh = DB.shipper(db, n.shipper);
+      return `<div class="tl-item"><span class="tl-dot ${n.next?'warn':'ok'}"></span>
+        <div class="between"><h4>${n.who}</h4><span class="muted small">${n.date}</span></div>
+        <div class="tl-meta row wrap" style="gap:6px;margin:4px 0">
+          <span class="ctag"><span class="swatch" style="background:${sh.color}"></span>${sh.name}</span>
+          <span class="chip">${co.name}</span><span class="chip">担当：${n.owner}</span></div>
+        <div class="tl-body">${n.topic}</div>
+        ${n.next ? `<div class="chip chip--brand mt-8">📅 次回フォロー：${n.next}</div>` : ""}
+      </div>`;
+    }).join("") + `</div>` : `<div class="empty"><div class="ico">💬</div><p>商談履歴がありません</p></div>`;
+
+    // follow
+    const fl = db.negotiations.filter(n => n.next).sort((a,b)=>a.next.localeCompare(b.next));
+    document.getElementById("follow").innerHTML = fl.length ? fl.map(n => {
+      const co = DB.company(db, n.company);
+      return `<div class="between" style="padding:8px 0;border-bottom:1px solid var(--line-2)">
+        <div><div style="font-weight:700" class="small">${co.name}</div><div class="muted small">${n.who.split('/')[0]}</div></div>
+        <span class="badge badge--warn"><span class="dot"></span>${n.next.replace('2026-','')}</span></div>`;
+    }).join("") : `<div class="empty small">フォロー予定なし</div>`;
+
+    // by shipper
+    document.getElementById("byShipper").innerHTML = db.shippers.map(s => {
+      const n = db.negotiations.filter(x=>x.shipper===s.id).length;
+      return `<div class="between" style="padding:7px 0"><span class="ctag"><span class="swatch" style="background:${s.color}"></span>${s.name}</span><b>${n}件</b></div>`;
+    }).join("");
+  }
+
+  window.openNew = function() {
+    const shOpts = db.shippers.map(s=>`<option value="${s.id}">${s.name}</option>`).join("");
+    const coOpts = db.companies.map(c=>`<option value="${c.id}">${c.name}</option>`).join("");
+    Modal.open(`
+      <div class="modal__head"><h3>商談を記録</h3><span class="close" data-close>×</span></div>
+      <div class="modal__body"><div class="form-grid">
+        <label class="fld"><span>荷主</span><select class="input" id="n_sh">${shOpts}</select></label>
+        <label class="fld"><span>会社</span><select class="input" id="n_co">${coOpts}</select></label>
+        <label class="fld"><span>日付</span><input class="input" type="date" id="n_date" value="2026-07-15"></label>
+        <label class="fld"><span>担当</span><input class="input" id="n_owner" value="営業 佐々木"></label>
+        <label class="fld span-2"><span>相手（誰と）</span><input class="input" id="n_who" placeholder="佐川急便 関東支店 / 井上様"></label>
+        <label class="fld span-2"><span>内容（何を話したか）</span><textarea class="input" id="n_topic" rows="3"></textarea></label>
+        <label class="fld span-2"><span>次回フォロー（任意）</span><input class="input" type="date" id="n_next"></label>
+      </div></div>
+      <div class="modal__foot"><button class="btn" data-close>キャンセル</button><button class="btn btn--primary" onclick="saveNew()">記録する</button></div>
+    `);
+  };
+  window.saveNew = function() {
+    const g = id => document.getElementById(id).value;
+    if (!g("n_who")) { Toast.show("相手を入力してください","warn"); return; }
+    db.negotiations.unshift({ id:"neg_"+Math.random().toString(36).slice(2,7), company:g("n_co"), shipper:g("n_sh"),
+      date:g("n_date"), who:g("n_who"), topic:g("n_topic"), next:g("n_next")||null, owner:g("n_owner") });
+    DB.save(db); Modal.close(); render(); Toast.show("商談を記録しました");
+  };
+
+  render();
+</script>
+</body>
+</html>

@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>車両管理｜ドラサポ</title>
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+<div class="layout">
+  <aside id="sidebar"></aside>
+  <div class="main">
+    <header id="topbar"></header>
+    <div class="content">
+      <div class="page-head">
+        <div>
+          <h1>車両管理</h1>
+          <p>リース状況・乗車ドライバー・返却／修理のステータスとログを管理</p>
+        </div>
+        <div class="page-head__actions">
+          <button class="btn btn--primary" onclick="openNew()">＋ 車両を登録</button>
+        </div>
+      </div>
+
+      <div class="grid grid--4 mb-16" id="vehKpi"></div>
+
+      <div class="filters">
+        <div class="seg" id="tab">
+          <button data-t="all" class="is-active">すべて</button>
+          <button data-t="active">稼働中</button>
+          <button data-t="idle">空き</button>
+          <button data-t="repair">修理中</button>
+          <button data-t="returned">返却済</button>
+        </div>
+        <select class="input" id="fLessor"><option value="all">すべてのリース元</option></select>
+      </div>
+
+      <div class="card">
+        <div class="table-wrap">
+          <table class="tbl">
+            <thead><tr>
+              <th>ナンバー / 車種</th><th>リース元</th><th>リース期間</th><th>乗車中</th>
+              <th>月額</th><th>ステータス</th><th></th>
+            </tr></thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="assets/js/data.js"></script>
+<script src="assets/js/app.js"></script>
+<script>
+  Shell.init("vehicles", { title: "車両管理" });
+  const db = DB.get();
+  let tab = "all", lessor = "all";
+  const lessors = [...new Set(db.vehicles.map(v=>v.lessor))];
+  const lSel = document.getElementById("fLessor");
+  lessors.forEach(l => lSel.insertAdjacentHTML("beforeend", `<option>${l}</option>`));
+  lSel.onchange = e => { lessor = e.target.value; render(); };
+  document.querySelectorAll("#tab button").forEach(b => b.onclick = () => { tab = b.dataset.t; document.querySelectorAll("#tab button").forEach(x=>x.classList.toggle("is-active",x===b)); render(); });
+
+  function leaseWarn(v) {
+    const end = new Date(v.leaseEnd + "T00:00:00"); const now = new Date("2026-07-15");
+    const days = Math.round((end - now)/86400000);
+    if (days < 0) return `<span class="badge badge--gray" style="margin-left:6px">終了</span>`;
+    if (days < 90) return `<span class="badge badge--warn" style="margin-left:6px">残${days}日</span>`;
+    return "";
+  }
+
+  function render() {
+    const cnt = k => db.vehicles.filter(v=>v.status===k).length;
+    const kpi = [
+      { l:"稼働中", v:cnt("active")+185, i:"🚐", c:"ok" },
+      { l:"空き", v:cnt("idle"), i:"🅿️", c:"info" },
+      { l:"修理中", v:cnt("repair"), i:"🔧", c:"warn" },
+      { l:"今月の新規リース", v:12, i:"🆕", c:"purple" },
+    ];
+    document.getElementById("vehKpi").innerHTML = kpi.map(x=>`
+      <div class="card kpi"><div class="kpi__icon" style="background:var(--${x.c}-soft);color:var(--${x.c})">${x.i}</div>
+      <div class="kpi__label">${x.l}</div><div class="kpi__value">${x.v}</div></div>`).join("");
+
+    let list = db.vehicles.filter(v => (tab==="all"||v.status===tab) && (lessor==="all"||v.lessor===lessor));
+    document.getElementById("rows").innerHTML = list.length ? list.map(v => {
+      const drv = v.driver ? DB.driver(db, v.driver) : null;
+      return `<tr onclick="location.href='vehicle-detail.html?id=${v.id}'">
+        <td><div class="cell-main">${v.plate}</div><div class="cell-sub">${v.model}</div></td>
+        <td class="small">${v.lessor}</td>
+        <td class="small">${v.leaseStart} 〜 ${v.leaseEnd}${leaseWarn(v)}</td>
+        <td>${drv ? `<div class="person">${UI.avatar(drv.name)}<span class="small">${drv.name}</span></div>` : '<span class="muted small">—</span>'}</td>
+        <td class="small">${UI.money(v.monthly)}</td>
+        <td>${UI.vehicleBadge(v.status)}</td>
+        <td class="muted">›</td>
+      </tr>`;
+    }).join("") : `<tr><td colspan="7"><div class="empty"><div class="ico">🚐</div><p>該当する車両がありません</p></div></td></tr>`;
+  }
+
+  window.openNew = function() {
+    Modal.open(`
+      <div class="modal__head"><h3>車両を登録</h3><span class="close" data-close>×</span></div>
+      <div class="modal__body">
+        <div class="form-grid">
+          <label class="fld"><span>ナンバー</span><input class="input" id="n_plate" placeholder="品川 800 あ 00-00"></label>
+          <label class="fld"><span>車種</span><input class="input" id="n_model" placeholder="トヨタ ハイエース"></label>
+          <label class="fld"><span>リース元</span><input class="input" id="n_lessor" placeholder="オリックス自動車"></label>
+          <label class="fld"><span>月額</span><input class="input" type="number" id="n_monthly" value="58000"></label>
+          <label class="fld"><span>リース開始</span><input class="input" type="date" id="n_start" value="2026-07-15"></label>
+          <label class="fld"><span>リース終了</span><input class="input" type="date" id="n_end" value="2029-07-14"></label>
+        </div>
+      </div>
+      <div class="modal__foot"><button class="btn" data-close>キャンセル</button><button class="btn btn--primary" onclick="saveNew()">登録する</button></div>
+    `);
+  };
+  window.saveNew = function() {
+    const g = id => document.getElementById(id).value;
+    if (!g("n_plate")) { Toast.show("ナンバーを入力してください","warn"); return; }
+    db.vehicles.unshift({
+      id:"veh_"+Math.random().toString(36).slice(2,7), plate:g("n_plate"), model:g("n_model"), lessor:g("n_lessor"),
+      leaseStart:g("n_start"), leaseEnd:g("n_end"), status:"idle", driver:null, monthly:+g("n_monthly")||0,
+      repairFrom:null, repairTo:null, repairCost:null
+    });
+    DB.save(db); Modal.close(); render(); Toast.show("車両を登録しました");
+  };
+
+  render();
+</script>
+</body>
+</html>

@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CSVインポート｜ドラサポ</title>
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+<div class="layout">
+  <aside id="sidebar"></aside>
+  <div class="main">
+    <header id="topbar"></header>
+    <div class="content">
+      <div class="page-head">
+        <div>
+          <h1>CSVインポート</h1>
+          <p>Indeed・エアワーク等からダウンロードしたCSVで候補者を一括登録</p>
+        </div>
+      </div>
+
+      <!-- step indicator -->
+      <div class="card" style="padding:18px 20px;margin-bottom:16px">
+        <div class="stepper" id="stepper">
+          <div class="step current"><span class="num">1</span><span class="lbl">ファイル選択</span></div>
+          <div class="step"><span class="num">2</span><span class="lbl">項目マッピング・確認</span></div>
+          <div class="step"><span class="num">3</span><span class="lbl">登録完了</span></div>
+        </div>
+      </div>
+
+      <!-- STEP 1 -->
+      <div id="s1">
+        <div class="grid grid--2">
+          <div class="card">
+            <div class="card__head"><h3>1. 取込先の会社（求人アカウント）</h3></div>
+            <div class="card__body">
+              <label class="fld mb-16"><span>会社を選択</span><select class="input" id="impCo" style="width:100%"></select></label>
+              <label class="fld"><span>応募媒体</span>
+                <select class="input" id="impSrc" style="width:100%"><option>Indeed</option><option>エアワーク</option><option>SNS</option></select></label>
+              <div class="chip chip--brand mt-16">名前・年齢・住所・電話番号は共通の必須項目。どの媒体のCSVでも取込可能です。</div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card__head"><h3>2. CSVファイル</h3></div>
+            <div class="card__body">
+              <div id="drop" style="border:2px dashed var(--line);border-radius:12px;padding:34px;text-align:center;cursor:pointer;transition:.15s">
+                <div style="font-size:38px">📄</div>
+                <div style="font-weight:700;margin-top:6px">CSVファイルをドラッグ＆ドロップ</div>
+                <div class="muted small">またはクリックして選択（.csv）</div>
+                <input type="file" id="file" accept=".csv" hidden>
+              </div>
+              <div class="divider"></div>
+              <div class="muted small mb-8">▼ サンプルデータで試す（ファイル不要）</div>
+              <button class="btn btn--block" onclick="loadSample()">サンプルCSVを読み込む（5件）</button>
+            </div>
+          </div>
+        </div>
+        <div class="card mt-16">
+          <div class="card__head"><h3>CSVフォーマット例</h3></div>
+          <div class="card__body">
+            <div class="table-wrap"><table class="tbl">
+              <thead><tr><th>氏名</th><th>フリガナ</th><th>年齢</th><th>住所</th><th>電話番号</th><th>経験</th></tr></thead>
+              <tbody>
+                <tr><td>山田 太郎</td><td>ヤマダ タロウ</td><td>36</td><td>東京都足立区</td><td>090-1111-2222</td><td>あり</td></tr>
+                <tr><td>鈴木 花子</td><td>スズキ ハナコ</td><td>29</td><td>埼玉県川口市</td><td>090-3333-4444</td><td>なし</td></tr>
+              </tbody>
+            </table></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 2 -->
+      <div id="s2" style="display:none">
+        <div class="card">
+          <div class="card__head"><h3>取込プレビュー</h3><span class="muted small" id="prevCount" style="margin-left:auto"></span></div>
+          <div class="card__body">
+            <div class="row mb-16 wrap">
+              <span class="chip">会社：<b id="pvCo">—</b></span>
+              <span class="chip">媒体：<b id="pvSrc">—</b></span>
+              <span class="badge badge--ok"><span class="dot"></span>必須項目マッチOK</span>
+            </div>
+            <div class="table-wrap"><table class="tbl">
+              <thead><tr><th>取込</th><th>氏名</th><th>フリガナ</th><th>年齢</th><th>住所</th><th>電話番号</th><th>経験</th></tr></thead>
+              <tbody id="prevRows"></tbody>
+            </table></div>
+          </div>
+        </div>
+        <div class="row mt-16" style="justify-content:flex-end;gap:10px">
+          <button class="btn" onclick="backTo1()">← 戻る</button>
+          <button class="btn btn--primary" onclick="doImport()">✓ 選択した候補者を登録</button>
+        </div>
+      </div>
+
+      <!-- STEP 3 -->
+      <div id="s3" style="display:none">
+        <div class="card"><div class="card__body" style="text-align:center;padding:48px">
+          <div style="font-size:54px">🎉</div>
+          <h2 style="margin:10px 0 4px" id="doneMsg">登録完了</h2>
+          <p class="muted" id="doneSub"></p>
+          <div class="row" style="justify-content:center;gap:10px" class="mt-16">
+            <a class="btn btn--primary" href="candidates.html">候補者一覧を見る</a>
+            <button class="btn" onclick="backTo1()">続けて取込む</button>
+          </div>
+        </div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="assets/js/data.js"></script>
+<script src="assets/js/app.js"></script>
+<script>
+  Shell.init("import", { title: "CSVインポート" });
+  const db = DB.get();
+  const coSel = document.getElementById("impCo");
+  db.companies.forEach(co => coSel.insertAdjacentHTML("beforeend", `<option value="${co.id}">${co.name}（${co.account}）</option>`));
+
+  let parsed = [];
+
+  const sample = [
+    ["中込 大地","ナカゴメ ダイチ",33,"東京都足立区","090-8811-2233","あり"],
+    ["大西 涼","オオニシ リョウ",27,"埼玉県草加市","090-7722-3344","なし"],
+    ["福田 健","フクダ ケン",45,"千葉県柏市","090-6633-4455","あり"],
+    ["新井 翔太","アライ ショウタ",30,"東京都江戸川区","090-5544-5566","なし"],
+    ["宮本 和也","ミヤモト カズヤ",38,"神奈川県川崎市","090-4455-6677","あり"],
+  ];
+
+  const drop = document.getElementById("drop");
+  const fileInput = document.getElementById("file");
+  drop.onclick = () => fileInput.click();
+  drop.ondragover = e => { e.preventDefault(); drop.style.borderColor = "var(--brand)"; drop.style.background = "var(--brand-soft)"; };
+  drop.ondragleave = () => { drop.style.borderColor = "var(--line)"; drop.style.background = ""; };
+  drop.ondrop = e => { e.preventDefault(); drop.style.borderColor="var(--line)"; drop.style.background=""; if (e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]); };
+  fileInput.onchange = e => { if (e.target.files[0]) readFile(e.target.files[0]); };
+
+  function readFile(f) {
+    const r = new FileReader();
+    r.onload = () => {
+      const rows = r.result.split(/\r?\n/).filter(x => x.trim()).map(l => l.split(","));
+      // drop header if it looks like one
+      if (rows[0] && /氏名|name|名前/i.test(rows[0][0])) rows.shift();
+      parsed = rows.map(cols => cols.map(x => x.trim()));
+      if (!parsed.length) { Toast.show("データが見つかりませんでした","warn"); return; }
+      goPreview();
+    };
+    r.readAsText(f, "UTF-8");
+  }
+  window.loadSample = function() { parsed = sample.map(x => x.map(String)); goPreview(); };
+
+  function goPreview() {
+    document.getElementById("pvCo").textContent = coSel.options[coSel.selectedIndex].text.split("（")[0];
+    document.getElementById("pvSrc").textContent = document.getElementById("impSrc").value;
+    document.getElementById("prevCount").textContent = `${parsed.length} 件を検出`;
+    document.getElementById("prevRows").innerHTML = parsed.map((r,i) => `
+      <tr>
+        <td><input type="checkbox" checked data-i="${i}"></td>
+        <td class="cell-main">${r[0]||"—"}</td><td class="small">${r[1]||"—"}</td>
+        <td>${r[2]||"—"}歳</td><td class="small">${r[3]||"—"}</td><td class="small">${r[4]||"—"}</td>
+        <td>${/あり|経験|true/i.test(r[5]||"") ? '<span class="chip chip--brand">経験者</span>' : '<span class="chip">未経験</span>'}</td>
+      </tr>`).join("");
+    setStep(2);
+  }
+
+  window.doImport = function() {
+    const checks = [...document.querySelectorAll("#prevRows input[type=checkbox]")];
+    const co = coSel.value, src = document.getElementById("impSrc").value;
+    let n = 0;
+    checks.forEach(ch => {
+      if (!ch.checked) return;
+      const r = parsed[+ch.dataset.i];
+      db.candidates.unshift({
+        id:"cand_"+Math.random().toString(36).slice(2,8),
+        name:r[0]||"", kana:r[1]||"", age:+r[2]||0, area:r[3]||"", tel:r[4]||"",
+        exp:/あり|経験|true/i.test(r[5]||""), company:co, source:src, status:"new", calls:[],
+        appliedAt:"2026-07-15", note:"", interview:null
+      });
+      n++;
+    });
+    DB.save(db);
+    document.getElementById("doneMsg").textContent = `${n}名の候補者を登録しました`;
+    document.getElementById("doneSub").textContent = `${document.getElementById("pvCo").textContent}（${src}）に取り込みました。架電を開始できます。`;
+    setStep(3);
+  };
+
+  window.backTo1 = function() { setStep(1); };
+  function setStep(n) {
+    ["s1","s2","s3"].forEach((id,i)=> document.getElementById(id).style.display = (i===n-1)?"":"none");
+    const steps = document.querySelectorAll("#stepper .step");
+    steps.forEach((s,i)=>{ s.className = "step" + (i < n-1 ? " done" : i === n-1 ? " current" : ""); s.querySelector(".num").textContent = i<n-1?"✓":i+1; });
+    window.scrollTo(0,0);
+  }
+</script>
+</body>
+</html>

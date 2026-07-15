@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ダッシュボード｜ドラサポ</title>
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+<div class="layout">
+  <aside id="sidebar"></aside>
+  <div class="main">
+    <header id="topbar"></header>
+    <div class="content">
+      <div class="page-head">
+        <div>
+          <h1>ダッシュボード</h1>
+          <p>採用パイプラインと稼働状況のサマリー（2026年7月）</p>
+        </div>
+        <div class="page-head__actions">
+          <a class="btn" href="import.html">📥 CSV取込</a>
+          <a class="btn btn--primary" href="candidates.html">＋ 候補者を見る</a>
+        </div>
+      </div>
+
+      <!-- KPI -->
+      <div class="grid grid--4" id="kpis"></div>
+
+      <div class="grid grid--3 mt-16" style="grid-template-columns: 2fr 1fr;">
+        <!-- パイプライン + 本日の予定 -->
+        <div class="grid" style="gap:16px;">
+          <div class="card">
+            <div class="card__head"><h3>採用パイプライン</h3><a class="btn btn--sm" href="candidates.html">一覧へ →</a></div>
+            <div class="card__body" id="pipeline"></div>
+          </div>
+          <div class="card">
+            <div class="card__head"><h3>今月の架電状況</h3><span class="muted small" style="margin-left:auto">目標 300件 / 月</span></div>
+            <div class="card__body" id="calls-summary"></div>
+          </div>
+        </div>
+
+        <div class="grid" style="gap:16px;">
+          <div class="card">
+            <div class="card__head"><h3>本日の予定</h3><a class="btn btn--sm" href="schedule.html">📅</a></div>
+            <div class="card__body" id="today" style="padding-top:8px"></div>
+          </div>
+          <div class="card">
+            <div class="card__head"><h3>要対応</h3></div>
+            <div class="card__body" id="todo" style="padding-top:6px"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid--2 mt-16">
+        <div class="card">
+          <div class="card__head"><h3>会社別 稼働ドライバー</h3><a class="btn btn--sm" href="companies.html">詳細</a></div>
+          <div class="card__body" id="by-company"></div>
+        </div>
+        <div class="card">
+          <div class="card__head"><h3>車両ステータス</h3><a class="btn btn--sm" href="vehicles.html">車両管理</a></div>
+          <div class="card__body" id="veh-status"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="assets/js/data.js"></script>
+<script src="assets/js/app.js"></script>
+<script>
+  Shell.init("dashboard", { title: "ダッシュボード", sub: "おかえりなさい、佐々木さん" });
+  const db = DB.get();
+
+  // KPI
+  const totalCand = db.candidates.length;
+  const inProgress = db.candidates.filter(c => ["calling","interview","interviewed"].includes(c.status)).length;
+  const contracts = db.candidates.filter(c => c.status === "contract").length + db.drivers.length;
+  const activeDrv = db.drivers.filter(d => d.status === "active").length;
+  const callsThisMonth = 214;
+  const kpis = [
+    { label:"今月の応募数", value: totalCand, unit:"名", delta:"+18% 前月比", up:true, icon:"🧑‍💼", bg:"var(--brand-soft)", fg:"var(--brand)" },
+    { label:"選考中",       value: inProgress, unit:"名", delta:"面接調整 4名", up:true, icon:"⏳", bg:"var(--purple-soft)", fg:"var(--purple)" },
+    { label:"今月の架電数", value: callsThisMonth, unit:"/ 300", delta:"71% 達成", up:true, icon:"📞", bg:"var(--ok-soft)", fg:"var(--ok)" },
+    { label:"稼働ドライバー", value: activeDrv + 168, unit:"名", delta:"納車待ち 1名", up:true, icon:"🚚", bg:"var(--warn-soft)", fg:"var(--warn)" },
+  ];
+  document.getElementById("kpis").innerHTML = kpis.map(k => `
+    <div class="card kpi">
+      <div class="kpi__icon" style="background:${k.bg};color:${k.fg}">${k.icon}</div>
+      <div class="kpi__label">${k.label}</div>
+      <div class="kpi__value">${k.value}<small> ${k.unit}</small></div>
+      <div class="kpi__delta ${k.up?'up':'down'}">${k.up?'▲':'▼'} ${k.delta}</div>
+    </div>`).join("");
+
+  // Pipeline funnel
+  const stages = [
+    { key:"new", label:"未対応", },
+    { key:"calling", label:"架電中" },
+    { key:"interview", label:"面接調整" },
+    { key:"interviewed", label:"面接済" },
+    { key:"contract", label:"契約" },
+  ];
+  const counts = stages.map(s => ({...s, n: db.candidates.filter(c => c.status === s.key).length }));
+  const max = Math.max(...counts.map(c => c.n), 1);
+  document.getElementById("pipeline").innerHTML = counts.map(s => {
+    const st = DB.statusMap[s.key];
+    return `<div class="mb-16">
+      <div class="between mb-8"><span class="row" style="gap:8px">${UI.badge(st.cls, st.label)}</span><b>${s.n}名</b></div>
+      <div class="progress"><span style="width:${Math.max(6, s.n/max*100)}%;background:var(--${st.cls==='gray'?'ink-3':st.cls})"></span></div>
+    </div>`;
+  }).join("");
+
+  // Calls summary
+  document.getElementById("calls-summary").innerHTML = `
+    <div class="between mb-8"><span class="muted">今月の進捗</span><b>214 / 300 件</b></div>
+    <div class="progress" style="height:12px"><span style="width:71%"></span></div>
+    <div class="grid grid--3 mt-16" style="gap:10px;text-align:center">
+      <div><div style="font-size:22px;font-weight:800;color:var(--ok)">128</div><div class="muted small">応答あり</div></div>
+      <div><div style="font-size:22px;font-weight:800;color:var(--warn)">71</div><div class="muted small">応答なし（要再架電）</div></div>
+      <div><div style="font-size:22px;font-weight:800;color:var(--danger)">15</div><div class="muted small">見送り</div></div>
+    </div>`;
+
+  // Today's schedule
+  const today = "2026-07-15";
+  const todays = db.schedule.filter(e => e.date === today).sort((a,b)=>a.time.localeCompare(b.time));
+  const evColor = { interview:"var(--purple)", call:"var(--brand)", negotiation:"var(--warn)", delivery:"var(--ok)", training:"var(--info)" };
+  const evIcon = { interview:"🤝", call:"📞", negotiation:"💬", delivery:"🚚", training:"📘" };
+  document.getElementById("today").innerHTML = todays.length ? todays.map(e => `
+    <div class="row" style="padding:9px 0;border-bottom:1px solid var(--line-2)">
+      <div style="width:44px;font-weight:800;color:${evColor[e.type]}">${e.time}</div>
+      <div style="flex:1"><div style="font-weight:700">${evIcon[e.type]} ${e.title}</div>
+      <div class="muted small">${e.who}${e.mode?' ・ '+e.mode:''}</div></div>
+    </div>`).join("") : `<div class="empty small">本日の予定はありません</div>`;
+
+  // Todo
+  const need = db.candidates.filter(c => c.status === "new").length;
+  const reCall = db.candidates.filter(c => c.calls.some(x=>x.r==="none") && c.status==="calling").length;
+  const waiting = db.drivers.filter(d => d.status === "waiting").length;
+  const repair = db.vehicles.filter(v => v.status === "repair").length;
+  document.getElementById("todo").innerHTML = [
+    { t:`未対応の候補者 ${need}名`, s:"架電を開始してください", href:"candidates.html?status=new", c:"gray" },
+    { t:`再架電が必要 ${reCall}名`, s:"応答なしの候補者", href:"calls.html", c:"warn" },
+    { t:`納車待ち ${waiting}名`, s:"車両を割当ててください", href:"drivers.html", c:"info" },
+    { t:`修理中の車両 ${repair}台`, s:"修理工場に確認", href:"vehicles.html", c:"warn" },
+  ].map(x => `<a class="between" href="${x.href}" style="padding:9px 0;border-bottom:1px solid var(--line-2)">
+      <div><div style="font-weight:700">${x.t}</div><div class="muted small">${x.s}</div></div>
+      <span class="muted">›</span></a>`).join("");
+
+  // By company
+  document.getElementById("by-company").innerHTML = `<div class="grid" style="gap:11px">` + db.companies.slice(0,6).map(co => {
+    const cnt = db.drivers.filter(d => d.company === co.id).length + Math.round(co.drivers*0.7);
+    return `<div class="between">
+      <span class="ctag"><span class="swatch" style="background:${co.color}"></span>${co.name}</span>
+      <span class="row" style="gap:10px"><span class="chip">求人${co.open}件</span><b>${cnt}名</b></span>
+    </div>`;
+  }).join("") + `</div>`;
+
+  // Vehicle status donut-ish
+  const vs = ["active","idle","repair","returned"].map(k => ({ k, n: db.vehicles.filter(v=>v.status===k).length, ...DB.vehicleStatus[k]}));
+  const vt = db.vehicles.length;
+  document.getElementById("veh-status").innerHTML = `
+    <div class="between mb-16"><div><div style="font-size:26px;font-weight:800">${vt}<small class="muted" style="font-size:14px"> 台（サンプル）</small></div><div class="muted small">今月の新規リース 12台</div></div>
+    <div class="legend" style="flex-direction:column;gap:8px">
+      ${vs.map(v=>`<span><i style="background:var(--${v.cls==='gray'?'ink-3':v.cls})"></i>${v.label} ${v.n}台</span>`).join("")}
+    </div></div>
+    <div class="progress" style="height:14px;display:flex;gap:0">
+      ${vs.map(v=>`<span style="width:${v.n/vt*100}%;background:var(--${v.cls==='gray'?'ink-3':v.cls});border-radius:0"></span>`).join("")}
+    </div>`;
+</script>
+</body>
+</html>

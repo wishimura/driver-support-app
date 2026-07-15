@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ドライバー管理｜ドラサポ</title>
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+<div class="layout">
+  <aside id="sidebar"></aside>
+  <div class="main">
+    <header id="topbar"></header>
+    <div class="content">
+      <div class="page-head">
+        <div>
+          <h1>ドライバー管理</h1>
+          <p>契約 → 納車 → 研修 → 稼働 までのステータスを一元管理</p>
+        </div>
+        <div class="page-head__actions">
+          <button class="btn btn--primary" onclick="openNew()">＋ ドライバーを追加</button>
+        </div>
+      </div>
+
+      <div class="grid grid--4 mb-16" id="drvKpi"></div>
+
+      <div class="filters">
+        <div class="seg" id="tab">
+          <button data-t="all" class="is-active">すべて</button>
+          <button data-t="waiting">納車待ち</button>
+          <button data-t="delivered">納車済</button>
+          <button data-t="training">研修中</button>
+          <button data-t="active">稼働中</button>
+          <button data-t="paused">解除申請中</button>
+        </div>
+        <select class="input" id="fCompany"><option value="all">すべての会社</option></select>
+      </div>
+
+      <div class="card">
+        <div class="table-wrap">
+          <table class="tbl">
+            <thead><tr>
+              <th>ドライバー</th><th>会社</th><th>契約日</th><th>進捗</th><th>担当車両</th><th>ステータス</th><th></th>
+            </tr></thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="assets/js/data.js"></script>
+<script src="assets/js/app.js"></script>
+<script>
+  Shell.init("drivers", { title: "ドライバー管理" });
+  const db = DB.get();
+  let tab = "all", company = "all";
+  const cSel = document.getElementById("fCompany");
+  db.companies.forEach(co => cSel.insertAdjacentHTML("beforeend", `<option value="${co.id}">${co.name}</option>`));
+  cSel.onchange = e => { company = e.target.value; render(); };
+  document.querySelectorAll("#tab button").forEach(b => b.onclick = () => { tab = b.dataset.t; document.querySelectorAll("#tab button").forEach(x=>x.classList.toggle("is-active",x===b)); render(); });
+
+  function miniSteps(d) {
+    const steps = [
+      { done: !!d.contractedAt, l:"契" },
+      { done: d.delivered, l:"納" },
+      { done: d.trainingDone || !d.trainingDate, l:"研" },
+      { done: d.status==="active", l:"稼" },
+    ];
+    return `<span class="callstages">` + steps.map(s =>
+      `<span class="callpill ${s.done?'done-ok':''}" style="width:24px;height:24px;font-size:11px">${s.l}</span>`).join("") + `</span>`;
+  }
+
+  function render() {
+    const cnt = k => db.drivers.filter(d=>d.status===k).length;
+    const kpi = [
+      { l:"稼働中", v:cnt("active")+168, i:"🚚", c:"ok" },
+      { l:"納車待ち", v:cnt("waiting"), i:"⏳", c:"warn" },
+      { l:"研修中", v:cnt("training"), i:"📘", c:"purple" },
+      { l:"解除申請中", v:cnt("paused"), i:"⚠️", c:"danger" },
+    ];
+    document.getElementById("drvKpi").innerHTML = kpi.map(x=>`
+      <div class="card kpi"><div class="kpi__icon" style="background:var(--${x.c}-soft);color:var(--${x.c})">${x.i}</div>
+      <div class="kpi__label">${x.l}</div><div class="kpi__value">${x.v}</div></div>`).join("");
+
+    let list = db.drivers.filter(d => (tab==="all"||d.status===tab) && (company==="all"||d.company===company));
+    document.getElementById("rows").innerHTML = list.length ? list.map(d => {
+      const co = DB.company(db, d.company);
+      const veh = d.vehicle ? DB.vehicle(db, d.vehicle) : null;
+      return `<tr onclick="location.href='driver-detail.html?id=${d.id}'">
+        <td><div class="person">${UI.avatar(d.name)}
+          <div><div class="cell-main">${d.name}</div><div class="cell-sub">${d.age}歳・${d.exp?'経験者':'未経験'}</div></div></div></td>
+        <td><span class="ctag"><span class="swatch" style="background:${co.color}"></span>${co.name}</span></td>
+        <td class="small">${d.contractedAt}</td>
+        <td>${miniSteps(d)}</td>
+        <td class="small">${veh ? veh.plate : '<span class="muted">未割当</span>'}</td>
+        <td>${UI.driverBadge(d.status)}</td>
+        <td class="muted">›</td>
+      </tr>`;
+    }).join("") : `<tr><td colspan="7"><div class="empty"><div class="ico">🚚</div><p>該当するドライバーがいません</p></div></td></tr>`;
+  }
+
+  window.openNew = function() {
+    const opts = db.companies.map(co => `<option value="${co.id}">${co.name}</option>`).join("");
+    Modal.open(`
+      <div class="modal__head"><h3>ドライバーを追加（既存ドライバーの登録など）</h3><span class="close" data-close>×</span></div>
+      <div class="modal__body">
+        <div class="form-grid">
+          <label class="fld"><span>氏名</span><input class="input" id="n_name"></label>
+          <label class="fld"><span>年齢</span><input class="input" type="number" id="n_age"></label>
+          <label class="fld"><span>会社</span><select class="input" id="n_co">${opts}</select></label>
+          <label class="fld"><span>経験</span><select class="input" id="n_exp"><option value="true">経験者</option><option value="false">未経験</option></select></label>
+          <label class="fld"><span>契約日</span><input class="input" type="date" id="n_ct" value="2026-07-15"></label>
+          <label class="fld"><span>ステータス</span><select class="input" id="n_st">
+            <option value="active">稼働中（既存）</option><option value="waiting">納車待ち</option></select></label>
+        </div>
+      </div>
+      <div class="modal__foot"><button class="btn" data-close>キャンセル</button><button class="btn btn--primary" onclick="saveNew()">追加する</button></div>
+    `);
+  };
+  window.saveNew = function() {
+    const g = id => document.getElementById(id).value;
+    if (!g("n_name")) { Toast.show("氏名を入力してください","warn"); return; }
+    const st = g("n_st");
+    db.drivers.unshift({
+      id:"drv_"+Math.random().toString(36).slice(2,7), name:g("n_name"), kana:"", age:+g("n_age")||0, company:g("n_co"),
+      exp:g("n_exp")==="true", status:st, contractedAt:g("n_ct"), deliveryDate:st==="active"?g("n_ct"):null,
+      delivered:st==="active", trainingDate:null, trainingDone:st==="active", startDate:st==="active"?g("n_ct"):null,
+      vehicle:null, tel:"", cancelAt:null, cancelEffectiveAt:null
+    });
+    DB.save(db); Modal.close(); render(); Toast.show("ドライバーを追加しました");
+  };
+
+  render();
+</script>
+</body>
+</html>

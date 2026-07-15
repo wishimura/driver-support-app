@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>候補者詳細｜ドラサポ</title>
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+<div class="layout">
+  <aside id="sidebar"></aside>
+  <div class="main">
+    <header id="topbar"></header>
+    <div class="content" id="content"></div>
+  </div>
+</div>
+
+<script src="assets/js/data.js"></script>
+<script src="assets/js/app.js"></script>
+<script>
+  Shell.init("candidates", { title: "候補者詳細" });
+  const db = DB.get();
+  const id = UI.qp("id");
+  let c = db.candidates.find(x => x.id === id);
+  const content = document.getElementById("content");
+
+  if (!c) { content.innerHTML = `<div class="empty"><div class="ico">🔍</div><p>候補者が見つかりません</p><a class="btn mt-16" href="candidates.html">一覧へ戻る</a></div>`; }
+  else render();
+
+  function persist() { DB.save(db); }
+
+  function render() {
+    const co = DB.company(db, c.company);
+    const sh = DB.shipper(db, co.shipper);
+    // flow steps
+    const order = ["new","calling","interview","interviewed","contract"];
+    const curIdx = c.status === "ng" ? -1 : order.indexOf(c.status);
+    const stepLabels = [["架電",""],["面接調整",""],["面接実施",""],["契約",""]];
+    const steps = [
+      {k:"new",l:"応募"},{k:"calling",l:"架電"},{k:"interview",l:"面接調整"},{k:"interviewed",l:"面接実施"},{k:"contract",l:"契約"}
+    ];
+
+    content.innerHTML = `
+      <div class="breadcrumb"><a href="candidates.html">候補者</a> › ${c.name}</div>
+      <div class="page-head">
+        <div class="person">
+          ${UI.avatar(c.name)}
+          <div>
+            <h1 style="margin:0">${c.name} <span class="muted" style="font-size:14px;font-weight:600">${c.age}歳</span></h1>
+            <p style="margin:0">${c.kana}・${c.area}</p>
+          </div>
+        </div>
+        <div class="page-head__actions">
+          ${UI.statusBadge(c.status)}
+          ${c.status === "interviewed" || c.status === "interview"
+            ? `<button class="btn btn--danger" onclick="markNG()">見送り</button>
+               <button class="btn btn--primary" onclick="toContract()">✓ 契約に進む</button>`
+            : c.status === "contract"
+            ? `<a class="btn btn--primary" href="drivers.html">🚚 ドライバー管理へ</a>`
+            : `<button class="btn btn--danger" onclick="markNG()">見送り</button>`}
+        </div>
+      </div>
+
+      <!-- stepper -->
+      <div class="card" style="padding:18px 20px;margin-bottom:16px">
+        ${c.status === "ng"
+          ? `<div class="row"><span class="badge badge--danger"><span class="dot"></span>見送り</span><span class="muted small">この候補者は見送りになりました</span></div>`
+          : `<div class="stepper">${steps.map((s,i)=>{
+              const cls = i < curIdx ? "done" : i === curIdx ? "current" : "";
+              return `<div class="step ${cls}"><span class="num">${i<curIdx?'✓':i+1}</span><span class="lbl">${s.l}</span></div>`;
+            }).join("")}</div>`}
+      </div>
+
+      <div class="grid" style="grid-template-columns: 1.6fr 1fr; gap:16px; align-items:start">
+        <!-- left -->
+        <div class="grid" style="gap:16px">
+          <!-- calls -->
+          <div class="card">
+            <div class="card__head"><h3>📞 架電ログ</h3>
+              ${c.calls.length < 3 && !["contract","ng"].includes(c.status)
+                ? `<button class="btn btn--sm btn--primary" onclick="openCall()">＋ 架電を記録</button>` : ``}
+            </div>
+            <div class="card__body" id="callsBox"></div>
+          </div>
+          <!-- interview -->
+          <div class="card">
+            <div class="card__head"><h3>🤝 面接</h3></div>
+            <div class="card__body" id="ivBox"></div>
+          </div>
+          <!-- activity timeline -->
+          <div class="card">
+            <div class="card__head"><h3>🕒 活動履歴</h3></div>
+            <div class="card__body" id="tlBox"></div>
+          </div>
+        </div>
+
+        <!-- right -->
+        <div class="grid" style="gap:16px">
+          <div class="card">
+            <div class="card__head"><h3>基本情報</h3></div>
+            <div class="card__body">
+              <dl class="dl">
+                <dt>電話番号</dt><dd>${c.tel}</dd>
+                <dt>住所</dt><dd>${c.area}</dd>
+                <dt>年齢</dt><dd>${c.age}歳</dd>
+                <dt>経験</dt><dd>${c.exp ? '<span class="chip chip--brand">経験者</span>' : '<span class="chip">未経験</span>'}</dd>
+                <dt>応募媒体</dt><dd>${c.source}</dd>
+                <dt>応募日</dt><dd>${c.appliedAt}</dd>
+              </dl>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card__head"><h3>応募元</h3></div>
+            <div class="card__body">
+              <dl class="dl">
+                <dt>荷主</dt><dd><span class="ctag"><span class="swatch" style="background:${sh.color}"></span>${sh.name}</span></dd>
+                <dt>会社</dt><dd><span class="ctag"><span class="swatch" style="background:${co.color}"></span>${co.name}</span></dd>
+                <dt>求人アカウント</dt><dd class="small">${co.account}</dd>
+              </dl>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card__head"><h3>メモ</h3></div>
+            <div class="card__body">
+              <textarea class="input" id="noteBox" rows="4" placeholder="対応メモを入力...">${c.note||""}</textarea>
+              <button class="btn btn--sm mt-8" onclick="saveNote()">保存</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    renderCalls(); renderIv(); renderTimeline();
+  }
+
+  function renderCalls() {
+    const box = document.getElementById("callsBox");
+    if (!c.calls.length) { box.innerHTML = `<div class="empty small">まだ架電していません</div>`; return; }
+    const rmap = { ok:["応答あり","ok"], none:["応答なし","warn"], ng:["見送り","danger"] };
+    box.innerHTML = `<div class="timeline">` + c.calls.map(cl => {
+      const [lbl, cls] = rmap[cl.r] || ["—","gray"];
+      return `<div class="tl-item"><span class="tl-dot ${cls}"></span>
+        <h4>${cl.n}回目の架電 ${UI.badge(cls, lbl)}</h4>
+        <div class="tl-meta">${cl.at || "2026-07-13 14:20"} ・ 担当：佐々木</div>
+        ${cl.memo ? `<div class="tl-body">${cl.memo}</div>` : ``}
+      </div>`;
+    }).join("") + `</div>`;
+  }
+
+  function renderIv() {
+    const box = document.getElementById("ivBox");
+    if (c.interview) {
+      const iv = c.interview;
+      box.innerHTML = `
+        <div class="between mb-16">
+          <div><div class="muted small">面接日時</div><b style="font-size:16px">${iv.date} ${iv.time}</b></div>
+          <div>${iv.mode === "来社" ? UI.badge("info","来社") : UI.badge("purple","リモート")}</div>
+        </div>
+        ${iv.result
+          ? `<div class="tl-body">${iv.result === "pass" ? UI.badge("ok","合格") : UI.badge("danger","不合格")} ${iv.memo||""}</div>`
+          : `<div class="row"><span class="chip">📅 Googleカレンダー連携済</span>
+             <button class="btn btn--sm btn--primary" style="margin-left:auto" onclick="openIvResult()">面接結果を記録</button></div>`}
+      `;
+    } else if (["contract","ng"].includes(c.status)) {
+      box.innerHTML = `<div class="empty small">—</div>`;
+    } else {
+      box.innerHTML = `<div class="empty small" style="padding:20px">
+        面接が未設定です<br><button class="btn btn--sm btn--primary mt-8" onclick="openIvSchedule()">📅 面接を設定</button></div>`;
+    }
+  }
+
+  function renderTimeline() {
+    const items = [];
+    items.push({ dot:"gray", h:`${c.source}から応募`, m:c.appliedAt });
+    c.calls.forEach(cl => items.push({ dot: cl.r==="ok"?"ok":cl.r==="ng"?"danger":"warn", h:`${cl.n}回目架電（${cl.r==="ok"?"応答あり":cl.r==="ng"?"見送り":"応答なし"}）`, m: cl.at||"2026-07-13" }));
+    if (c.interview) items.push({ dot:"", h:`面接設定（${c.interview.mode}）`, m:c.interview.date });
+    if (c.interview && c.interview.result) items.push({ dot: c.interview.result==="pass"?"ok":"danger", h:`面接${c.interview.result==="pass"?"合格":"不合格"}`, m:c.interview.date });
+    if (c.status === "contract") items.push({ dot:"ok", h:"契約 → ドライバー登録", m:"2026-07-15" });
+    document.getElementById("tlBox").innerHTML = `<div class="timeline">` + items.reverse().map(i =>
+      `<div class="tl-item"><span class="tl-dot ${i.dot}"></span><h4>${i.h}</h4><div class="tl-meta">${i.m}</div></div>`).join("") + `</div>`;
+  }
+
+  // ---- actions ----
+  window.saveNote = function() { c.note = document.getElementById("noteBox").value; persist(); Toast.show("メモを保存しました"); };
+
+  window.openCall = function() {
+    const n = c.calls.length + 1;
+    Modal.open(`
+      <div class="modal__head"><h3>${n}回目の架電を記録</h3><span class="close" data-close>×</span></div>
+      <div class="modal__body">
+        <label class="fld mb-16"><span>架電結果</span>
+          <select class="input" id="cl_r"><option value="ok">応答あり</option><option value="none">応答なし</option><option value="ng">見送り</option></select></label>
+        <label class="fld"><span>メモ</span><textarea class="input" id="cl_memo" rows="3" placeholder="通話内容・次回架電の予定など"></textarea></label>
+      </div>
+      <div class="modal__foot"><button class="btn" data-close>キャンセル</button><button class="btn btn--primary" onclick="saveCall(${n})">記録する</button></div>
+    `);
+  };
+  window.saveCall = function(n) {
+    const r = document.getElementById("cl_r").value;
+    const memo = document.getElementById("cl_memo").value;
+    c.calls.push({ n, r, memo, at: "2026-07-15 " + (10 + n) + ":30" });
+    if (r === "ng") c.status = "ng";
+    else if (r === "ok" && c.status === "new") c.status = "calling";
+    else if (c.status === "new") c.status = "calling";
+    persist(); Modal.close(); render();
+    Toast.show(r === "ok" ? "応答ありで記録しました" : r === "ng" ? "見送りにしました" : "応答なしで記録しました", r==="ok"?"ok":"warn");
+  };
+
+  window.openIvSchedule = function() {
+    Modal.open(`
+      <div class="modal__head"><h3>面接を設定</h3><span class="close" data-close>×</span></div>
+      <div class="modal__body">
+        <div class="form-grid">
+          <label class="fld"><span>面接日</span><input class="input" type="date" id="iv_date" value="2026-07-18"></label>
+          <label class="fld"><span>時間</span><input class="input" type="time" id="iv_time" value="10:00"></label>
+          <label class="fld span-2"><span>面接方法</span>
+            <select class="input" id="iv_mode"><option>来社</option><option>リモート</option></select></label>
+        </div>
+        <div class="chip chip--brand mt-16">📅 保存すると Googleカレンダー に自動登録されます（モック）</div>
+      </div>
+      <div class="modal__foot"><button class="btn" data-close>キャンセル</button><button class="btn btn--primary" onclick="saveIv()">設定する</button></div>
+    `);
+  };
+  window.saveIv = function() {
+    c.interview = { date: document.getElementById("iv_date").value, time: document.getElementById("iv_time").value, mode: document.getElementById("iv_mode").value, result: null, memo:"" };
+    c.status = "interview";
+    // add to schedule
+    db.schedule.push({ id:"ev_"+Math.random().toString(36).slice(2,7), date:c.interview.date, time:c.interview.time, type:"interview", title:"面接："+c.name, who:DB.company(db,c.company).name, mode:c.interview.mode });
+    persist(); Modal.close(); render(); Toast.show("面接を設定し、カレンダーに登録しました");
+  };
+
+  window.openIvResult = function() {
+    Modal.open(`
+      <div class="modal__head"><h3>面接結果を記録</h3><span class="close" data-close>×</span></div>
+      <div class="modal__body">
+        <label class="fld mb-16"><span>結果</span>
+          <select class="input" id="iv_res"><option value="pass">合格（契約へ）</option><option value="fail">不合格（見送り）</option></select></label>
+        <label class="fld"><span>所感・メモ</span><textarea class="input" id="iv_rmemo" rows="3" placeholder="面接での様子、稼働可能日など"></textarea></label>
+      </div>
+      <div class="modal__foot"><button class="btn" data-close>キャンセル</button><button class="btn btn--primary" onclick="saveIvResult()">記録する</button></div>
+    `);
+  };
+  window.saveIvResult = function() {
+    const res = document.getElementById("iv_res").value;
+    c.interview.result = res; c.interview.memo = document.getElementById("iv_rmemo").value;
+    c.status = res === "pass" ? "interviewed" : "ng";
+    persist(); Modal.close(); render(); Toast.show(res==="pass"?"合格を記録しました":"見送りにしました", res==="pass"?"ok":"warn");
+  };
+
+  window.markNG = function() { c.status = "ng"; persist(); render(); Toast.show("見送りにしました","warn"); };
+
+  window.toContract = function() {
+    const co = DB.company(db, c.company);
+    Modal.open(`
+      <div class="modal__head"><h3>契約 → ドライバー登録</h3><span class="close" data-close>×</span></div>
+      <div class="modal__body">
+        <p class="muted mb-16">${c.name} さんを契約し、ドライバーとして登録します。納車日・研修日を設定してください。</p>
+        <div class="form-grid">
+          <label class="fld"><span>契約日</span><input class="input" type="date" id="ct_date" value="2026-07-15"></label>
+          <label class="fld"><span>納車予定日</span><input class="input" type="date" id="ct_deliv" value="2026-07-28"></label>
+          <label class="fld span-2"><span>研修</span>
+            <select class="input" id="ct_train"><option value="need">研修あり</option><option value="skip">研修なし（経験者）</option></select></label>
+        </div>
+        <div class="chip chip--brand mt-16">この内容はドライバー管理・スケジュールに反映されます</div>
+      </div>
+      <div class="modal__foot"><button class="btn" data-close>キャンセル</button><button class="btn btn--primary" onclick="saveContract()">契約を確定</button></div>
+    `);
+  };
+  window.saveContract = function() {
+    c.status = "contract";
+    const train = document.getElementById("ct_train").value === "need";
+    const drv = {
+      id:"drv_"+Math.random().toString(36).slice(2,7), name:c.name, kana:c.kana, age:c.age, company:c.company, exp:c.exp,
+      status:"waiting", contractedAt:document.getElementById("ct_date").value, deliveryDate:document.getElementById("ct_deliv").value,
+      delivered:false, trainingDate: train ? "2026-07-30" : null, trainingDone:false, startDate:null, vehicle:null, tel:c.tel, cancelAt:null, cancelEffectiveAt:null
+    };
+    db.drivers.unshift(drv);
+    db.schedule.push({ id:"ev_"+Math.random().toString(36).slice(2,7), date:drv.deliveryDate, time:"09:30", type:"delivery", title:"納車："+c.name, who:DB.company(db,c.company).name, mode:"" });
+    persist(); Modal.close(); render(); Toast.show("契約完了。ドライバーとして登録しました");
+  };
+</script>
+</body>
+</html>

@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ドライバー詳細｜ドラサポ</title>
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+<div class="layout">
+  <aside id="sidebar"></aside>
+  <div class="main">
+    <header id="topbar"></header>
+    <div class="content" id="content"></div>
+  </div>
+</div>
+
+<script src="assets/js/data.js"></script>
+<script src="assets/js/app.js"></script>
+<script>
+  Shell.init("drivers", { title: "ドライバー詳細" });
+  const db = DB.get();
+  const id = UI.qp("id");
+  let d = db.drivers.find(x => x.id === id);
+  const content = document.getElementById("content");
+  const logs = [];
+  d ? render() : content.innerHTML = `<div class="empty"><div class="ico">🔍</div><p>ドライバーが見つかりません</p><a class="btn mt-16" href="drivers.html">一覧へ</a></div>`;
+
+  function persist(){ DB.save(db); }
+
+  function render() {
+    const co = DB.company(db, d.company);
+    const sh = DB.shipper(db, co.shipper);
+    const veh = d.vehicle ? DB.vehicle(db, d.vehicle) : null;
+    const steps = [
+      { k:"contract", l:"契約", done:!!d.contractedAt, date:d.contractedAt },
+      { k:"delivery", l:"納車", done:d.delivered, date:d.deliveryDate },
+      { k:"training", l:"研修", done:d.trainingDone || !d.trainingDate, date:d.trainingDate || "不要" },
+      { k:"active",   l:"稼働", done:d.status==="active", date:d.startDate },
+    ];
+    const curStep = steps.findIndex(s => !s.done);
+
+    content.innerHTML = `
+      <div class="breadcrumb"><a href="drivers.html">ドライバー</a> › ${d.name}</div>
+      <div class="page-head">
+        <div class="person">${UI.avatar(d.name)}
+          <div><h1 style="margin:0">${d.name} <span class="muted" style="font-size:14px;font-weight:600">${d.age}歳</span></h1>
+          <p style="margin:0">${co.name}・${d.exp?'経験者':'未経験'}</p></div></div>
+        <div class="page-head__actions">
+          ${UI.driverBadge(d.status)}
+          ${d.status==="paused" || d.status==="left" ? "" :
+            `<button class="btn btn--danger" onclick="openCancel()">解除申請を登録</button>`}
+        </div>
+      </div>
+
+      <!-- flow -->
+      <div class="card" style="padding:20px;margin-bottom:16px">
+        <div class="between mb-16"><h3 style="margin:0">稼働フロー</h3>
+          ${nextAction()}</div>
+        <div class="stepper">
+          ${steps.map((s,i)=>{
+            const cls = s.done ? "done" : i===curStep ? "current" : "";
+            return `<div class="step ${cls}"><span class="num">${s.done?'✓':i+1}</span>
+              <span class="lbl">${s.l}<br><span class="muted small" style="font-weight:500">${s.date||'—'}</span></span></div>`;
+          }).join("")}
+        </div>
+        ${d.cancelEffectiveAt ? `<div class="chip" style="background:var(--danger-soft);border-color:#f3c2bd;color:var(--danger);margin-top:16px">
+          ⚠️ 解除申請日：${d.cancelAt} ／ 契約終了日（2ヶ月後）：<b>${d.cancelEffectiveAt}</b></div>` : ""}
+      </div>
+
+      <div class="grid" style="grid-template-columns:1.5fr 1fr;gap:16px;align-items:start">
+        <div class="grid" style="gap:16px">
+          <div class="card">
+            <div class="card__head"><h3>🕒 稼働ログ</h3></div>
+            <div class="card__body" id="tl"></div>
+          </div>
+        </div>
+        <div class="grid" style="gap:16px">
+          <div class="card">
+            <div class="card__head"><h3>基本情報</h3></div>
+            <div class="card__body"><dl class="dl">
+              <dt>電話番号</dt><dd>${d.tel||"—"}</dd>
+              <dt>荷主</dt><dd><span class="ctag"><span class="swatch" style="background:${sh.color}"></span>${sh.name}</span></dd>
+              <dt>会社</dt><dd><span class="ctag"><span class="swatch" style="background:${co.color}"></span>${co.name}</span></dd>
+              <dt>契約形態</dt><dd>業務委託</dd>
+              <dt>契約日</dt><dd>${d.contractedAt||"—"}</dd>
+              <dt>経験</dt><dd>${d.exp?'<span class="chip chip--brand">経験者</span>':'<span class="chip">未経験</span>'}</dd>
+            </dl></div>
+          </div>
+          <div class="card">
+            <div class="card__head"><h3>担当車両</h3>${!veh && d.status!=="left" ? `<button class="btn btn--sm" onclick="assignVeh()">割当</button>`:``}</div>
+            <div class="card__body">
+              ${veh ? `<dl class="dl">
+                <dt>ナンバー</dt><dd>${veh.plate}</dd>
+                <dt>車種</dt><dd>${veh.model}</dd>
+                <dt>リース元</dt><dd>${veh.lessor}</dd>
+                <dt></dt><dd><a class="btn btn--sm" href="vehicle-detail.html?id=${veh.id}">車両詳細 →</a></dd>
+              </dl>` : `<div class="empty small">車両が未割当です</div>`}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    renderTl();
+  }
+
+  function nextAction() {
+    if (d.status === "waiting") return `<button class="btn btn--sm btn--primary" onclick="markDelivered()">🚚 納車済にする</button>`;
+    if (d.status === "delivered") return d.trainingDate
+      ? `<button class="btn btn--sm btn--primary" onclick="markTraining()">📘 研修を実施</button>`
+      : `<button class="btn btn--sm btn--primary" onclick="markActive()">▶️ 稼働開始</button>`;
+    if (d.status === "training") return `<button class="btn btn--sm btn--primary" onclick="markActive()">▶️ 稼働開始</button>`;
+    return "";
+  }
+
+  function renderTl() {
+    const items = [];
+    if (d.contractedAt) items.push({ dot:"", h:"契約締結（業務委託）", m:d.contractedAt });
+    if (d.deliveryDate) items.push({ dot: d.delivered?"ok":"warn", h: d.delivered?"納車完了":"納車予定", m:d.deliveryDate });
+    if (d.trainingDate) items.push({ dot: d.trainingDone?"ok":"warn", h: d.trainingDone?"研修完了":"研修予定", m:d.trainingDate });
+    if (d.startDate) items.push({ dot: d.status==="active"?"ok":"gray", h: d.status==="active"?"稼働開始":"稼働予定", m:d.startDate });
+    if (d.cancelAt) items.push({ dot:"danger", h:"解除申請を受付（2ヶ月前宣言）", m:d.cancelAt });
+    if (d.cancelEffectiveAt) items.push({ dot:"danger", h:"契約終了予定日", m:d.cancelEffectiveAt });
+    logs.forEach(l => items.push(l));
+    document.getElementById("tl").innerHTML = `<div class="timeline">` + items.reverse().map(i=>
+      `<div class="tl-item"><span class="tl-dot ${i.dot}"></span><h4>${i.h}</h4><div class="tl-meta">${i.m}${i.by?' ・ '+i.by:''}</div>${i.body?`<div class="tl-body">${i.body}</div>`:''}</div>`).join("") + `</div>`;
+  }
+
+  // actions
+  window.markDelivered = function() { d.delivered = true; d.status = "delivered"; logs.push({dot:"ok",h:"納車ステータスを更新",m:"2026-07-15",by:"佐々木"}); persist(); render(); Toast.show("納車済に更新しました"); };
+  window.markTraining = function() { d.trainingDone = true; d.status = "training"; logs.push({dot:"ok",h:"研修を実施",m:"2026-07-15",by:"佐々木"}); persist(); render(); Toast.show("研修中に更新しました"); };
+  window.markActive = function() { d.status = "active"; d.trainingDone = true; d.startDate = d.startDate || "2026-07-15"; logs.push({dot:"ok",h:"稼働を開始",m:"2026-07-15",by:"佐々木"}); persist(); render(); Toast.show("稼働開始しました","ok"); };
+
+  window.assignVeh = function() {
+    const idle = db.vehicles.filter(v => v.status==="idle");
+    Modal.open(`
+      <div class="modal__head"><h3>車両を割当</h3><span class="close" data-close>×</span></div>
+      <div class="modal__body">
+        ${idle.length ? `<label class="fld"><span>空き車両</span><select class="input" id="v">
+          ${idle.map(v=>`<option value="${v.id}">${v.plate}（${v.model}）</option>`).join("")}</select></label>`
+          : `<div class="empty small">現在、空き車両がありません。車両管理から返却車両を確認してください。</div>`}
+      </div>
+      <div class="modal__foot"><button class="btn" data-close>キャンセル</button>${idle.length?`<button class="btn btn--primary" onclick="saveVeh()">割当てる</button>`:``}</div>
+    `);
+  };
+  window.saveVeh = function() {
+    const vid = document.getElementById("v").value;
+    const v = DB.vehicle(db, vid);
+    v.status = "active"; v.driver = d.id; d.vehicle = vid;
+    logs.push({dot:"ok",h:"車両を割当",m:"2026-07-15",body:v.plate}); persist(); render(); Toast.show("車両を割当てました");
+  };
+
+  window.openCancel = function() {
+    Modal.open(`
+      <div class="modal__head"><h3>解除申請を登録</h3><span class="close" data-close>×</span></div>
+      <div class="modal__body">
+        <p class="muted mb-16">業務委託契約は2ヶ月前の解除宣言が必要です。申請日を入力すると、契約終了日（2ヶ月後）が自動計算されます。</p>
+        <label class="fld mb-16"><span>解除申請日</span><input class="input" type="date" id="cq" value="2026-07-15"></label>
+        <label class="fld"><span>理由・メモ</span><textarea class="input" id="cm" rows="3" placeholder="本人からの申し出内容など"></textarea></label>
+      </div>
+      <div class="modal__foot"><button class="btn" data-close>キャンセル</button><button class="btn btn--danger" onclick="saveCancel()">解除を登録</button></div>
+    `);
+  };
+  window.saveCancel = function() {
+    const q = document.getElementById("cq").value;
+    const dt = new Date(q + "T00:00:00"); dt.setMonth(dt.getMonth()+2);
+    const eff = dt.toISOString().slice(0,10);
+    d.cancelAt = q; d.cancelEffectiveAt = eff; d.status = "paused";
+    logs.push({dot:"danger",h:"解除申請を登録",m:q,body:document.getElementById("cm").value||"—"});
+    persist(); Modal.close(); render(); Toast.show("解除申請を登録しました（終了日："+eff+"）","warn");
+  };
+</script>
+</body>
+</html>

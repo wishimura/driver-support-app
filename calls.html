@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>架電管理｜ドラサポ</title>
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+<div class="layout">
+  <aside id="sidebar"></aside>
+  <div class="main">
+    <header id="topbar"></header>
+    <div class="content">
+      <div class="page-head">
+        <div>
+          <h1>架電管理</h1>
+          <p>1回目〜3回目の架電をステータス色分けで管理（スプレッドシートの代替）</p>
+        </div>
+        <div class="page-head__actions">
+          <span class="chip">今月 214 / 300 件</span>
+        </div>
+      </div>
+
+      <div class="grid grid--4 mb-16" id="callKpi"></div>
+
+      <div class="filters">
+        <div class="seg" id="tab">
+          <button data-t="todo" class="is-active">要架電</button>
+          <button data-t="all">すべて</button>
+          <button data-t="ok">応答あり</button>
+          <button data-t="none">応答なし</button>
+        </div>
+        <select class="input" id="fCompany"><option value="all">すべての会社</option></select>
+        <div class="legend" style="margin-left:auto">
+          <span><i style="background:var(--ok)"></i>応答あり</span>
+          <span><i style="background:var(--warn)"></i>応答なし</span>
+          <span><i style="background:var(--danger)"></i>見送り</span>
+          <span><i style="background:#fff;border:1.5px solid var(--line)"></i>未架電</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="table-wrap">
+          <table class="tbl">
+            <thead><tr>
+              <th>候補者</th><th>会社</th><th>電話番号</th>
+              <th style="text-align:center">1回目</th><th style="text-align:center">2回目</th><th style="text-align:center">3回目</th>
+              <th>ステータス</th><th>操作</th>
+            </tr></thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="assets/js/data.js"></script>
+<script src="assets/js/app.js"></script>
+<script>
+  Shell.init("calls", { title: "架電管理" });
+  const db = DB.get();
+  let tab = "todo", company = "all";
+
+  const cSel = document.getElementById("fCompany");
+  db.companies.forEach(co => cSel.insertAdjacentHTML("beforeend", `<option value="${co.id}">${co.name}</option>`));
+  cSel.onchange = e => { company = e.target.value; render(); };
+  document.querySelectorAll("#tab button").forEach(b => b.onclick = () => { tab = b.dataset.t; document.querySelectorAll("#tab button").forEach(x=>x.classList.toggle("is-active",x===b)); render(); });
+
+  function lastResult(c){ return c.calls.length ? c.calls[c.calls.length-1].r : null; }
+
+  function pill(c, n) {
+    const call = c.calls.find(x => x.n === n);
+    const canCall = c.calls.length === n-1 && !["contract","ng","interviewed","interview"].includes(c.status);
+    if (call) {
+      const cls = call.r==="ok"?"done-ok":call.r==="ng"?"done-ng":"done-none";
+      const t = call.r==="ok"?"応答あり":call.r==="ng"?"見送り":"応答なし";
+      return `<span class="callpill ${cls}" title="${t}">${n}</span>`;
+    }
+    if (canCall) return `<button class="callpill" style="cursor:pointer" title="架電を記録" onclick="rec('${c.id}',${n})">${n}</button>`;
+    return `<span class="callpill" style="opacity:.4">${n}</span>`;
+  }
+
+  function render() {
+    // KPI
+    const untouched = db.candidates.filter(c => c.status==="new").length;
+    const reCall = db.candidates.filter(c => c.status==="calling" && lastResult(c)==="none").length;
+    const answered = db.candidates.filter(c => c.calls.some(x=>x.r==="ok")).length;
+    const total = db.candidates.reduce((s,c)=>s+c.calls.length,0);
+    const k = [
+      { l:"未架電", v:untouched, i:"⚪", c:"gray" },
+      { l:"要再架電（応答なし）", v:reCall, i:"🔁", c:"warn" },
+      { l:"応答あり", v:answered, i:"✅", c:"ok" },
+      { l:"累計架電回数", v:total, i:"📞", c:"info" },
+    ];
+    document.getElementById("callKpi").innerHTML = k.map(x=>`
+      <div class="card kpi"><div class="kpi__icon" style="background:var(--${x.c==='gray'?'gray-soft':x.c+'-soft'});color:var(--${x.c==='gray'?'ink-3':x.c})">${x.i}</div>
+      <div class="kpi__label">${x.l}</div><div class="kpi__value">${x.v}</div></div>`).join("");
+
+    let list = db.candidates.filter(c => company==="all" || c.company===company);
+    if (tab === "todo") list = list.filter(c => (c.status==="new") || (c.status==="calling" && lastResult(c)==="none"));
+    else if (tab === "ok") list = list.filter(c => c.calls.some(x=>x.r==="ok"));
+    else if (tab === "none") list = list.filter(c => lastResult(c)==="none");
+
+    document.getElementById("rows").innerHTML = list.length ? list.map(c => {
+      const co = DB.company(db, c.company);
+      const canCall = c.calls.length < 3 && !["contract","ng","interviewed","interview"].includes(c.status);
+      return `<tr>
+        <td onclick="location.href='candidate-detail.html?id=${c.id}'"><div class="person">${UI.avatar(c.name)}
+          <div><div class="cell-main">${c.name}</div><div class="cell-sub">${c.age}歳・${c.source}</div></div></div></td>
+        <td><span class="ctag"><span class="swatch" style="background:${co.color}"></span>${co.name}</span></td>
+        <td class="small">${c.tel}</td>
+        <td style="text-align:center">${pill(c,1)}</td>
+        <td style="text-align:center">${pill(c,2)}</td>
+        <td style="text-align:center">${pill(c,3)}</td>
+        <td>${UI.statusBadge(c.status)}</td>
+        <td>${canCall ? `<button class="btn btn--sm btn--primary" onclick="rec('${c.id}',${c.calls.length+1})">📞 架電</button>` : `<a class="btn btn--sm" href="candidate-detail.html?id=${c.id}">詳細</a>`}</td>
+      </tr>`;
+    }).join("") : `<tr><td colspan="8"><div class="empty"><div class="ico">📞</div><p>対象の候補者がいません</p></div></td></tr>`;
+  }
+
+  window.rec = function(cid, n) {
+    const c = db.candidates.find(x=>x.id===cid);
+    Modal.open(`
+      <div class="modal__head"><h3>${c.name}｜${n}回目の架電</h3><span class="close" data-close>×</span></div>
+      <div class="modal__body">
+        <div class="row mb-16"><span class="chip">📱 ${c.tel}</span><span class="chip">${c.source}</span></div>
+        <label class="fld mb-16"><span>架電結果</span>
+          <select class="input" id="r"><option value="ok">応答あり（次のステップへ）</option><option value="none">応答なし（再架電）</option><option value="ng">見送り</option></select></label>
+        <label class="fld"><span>メモ</span><textarea class="input" id="m" rows="3" placeholder="通話内容・面接希望日など"></textarea></label>
+      </div>
+      <div class="modal__foot"><button class="btn" data-close>キャンセル</button><button class="btn btn--primary" onclick="saveRec('${cid}',${n})">記録する</button></div>
+    `);
+  };
+  window.saveRec = function(cid, n) {
+    const c = db.candidates.find(x=>x.id===cid);
+    const r = document.getElementById("r").value;
+    c.calls.push({ n, r, memo: document.getElementById("m").value, at:"2026-07-15 "+(9+n)+":15" });
+    if (r === "ng") c.status = "ng"; else if (c.status === "new") c.status = "calling";
+    DB.save(db); Modal.close(); render();
+    Toast.show(r==="ok"?"応答ありで記録しました":r==="ng"?"見送りにしました":"応答なしで記録しました", r==="ok"?"ok":"warn");
+  };
+
+  render();
+</script>
+</body>
+</html>
