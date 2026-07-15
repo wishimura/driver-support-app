@@ -4,7 +4,7 @@
    DB接続は不要。初回ロード時にシードデータを投入します。
 ================================================================ */
 (function () {
-  const KEY = "dorasapo_mock_v1";
+  const KEY = "dorasapo_mock_v2";
 
   // ---- 荷主（Sagawa / Yamato など） ----
   const shippers = [
@@ -13,15 +13,16 @@
     { id: "sh3", name: "Amazon",   color: "#c47f04" },
   ];
 
-  // ---- 会社（荷主の下請け＝自社が仕事をもらう会社／求人アカウント別） ----
+  // ---- 求人アカウント（社内では「会社」と呼称。Indeed/エアワーク等のアカウント単位） ----
+  //   platform … そのアカウントの応募媒体（単一）。CSVはアカウント単位で取り込む。
   const companies = [
-    { id: "co1", name: "関東ロジ第一営業所", shipper: "sh1", color: "#1f6feb", account: "Indeed / エアワーク", drivers: 42, open: 8 },
-    { id: "co2", name: "城南デリバリー",     shipper: "sh1", color: "#7b52d6", account: "Indeed",           drivers: 28, open: 5 },
-    { id: "co3", name: "湾岸トランスポート", shipper: "sh2", color: "#17915c", account: "エアワーク",       drivers: 33, open: 6 },
-    { id: "co4", name: "北関東配送センター", shipper: "sh2", color: "#c47f04", account: "Indeed / SNS",      drivers: 19, open: 3 },
-    { id: "co5", name: "TOKYOラストワンマイル", shipper: "sh3", color: "#d1443b", account: "Indeed",        drivers: 24, open: 7 },
-    { id: "co6", name: "多摩エリア運送",     shipper: "sh1", color: "#0f9b9b", account: "エアワーク / SNS",  drivers: 15, open: 2 },
-    { id: "co7", name: "埼玉第二センター",   shipper: "sh2", color: "#e0692b", account: "Indeed",           drivers: 11, open: 4 },
+    { id: "co1", name: "関東ロジ第一営業所", shipper: "sh1", color: "#1f6feb", platform: "Indeed",    account: "Indeed",    drivers: 42, open: 8 },
+    { id: "co2", name: "城南デリバリー",     shipper: "sh1", color: "#7b52d6", platform: "Indeed",    account: "Indeed",    drivers: 28, open: 5 },
+    { id: "co3", name: "湾岸トランスポート", shipper: "sh2", color: "#17915c", platform: "エアワーク", account: "エアワーク", drivers: 33, open: 6 },
+    { id: "co4", name: "北関東配送センター", shipper: "sh2", color: "#c47f04", platform: "SNS",       account: "SNS",       drivers: 19, open: 3 },
+    { id: "co5", name: "TOKYOラストワンマイル", shipper: "sh3", color: "#d1443b", platform: "Indeed", account: "Indeed",   drivers: 24, open: 7 },
+    { id: "co6", name: "多摩エリア運送",     shipper: "sh1", color: "#0f9b9b", platform: "エアワーク", account: "エアワーク", drivers: 15, open: 2 },
+    { id: "co7", name: "埼玉第二センター",   shipper: "sh2", color: "#e0692b", platform: "Indeed",    account: "Indeed",    drivers: 11, open: 4 },
   ];
 
   // ---- 採用ステータス ----

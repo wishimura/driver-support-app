@@ -34,7 +34,7 @@
           <button data-st="contract">契約</button>
           <button data-st="ng">見送り</button>
         </div>
-        <select class="input" id="fCompany"><option value="all">すべての会社</option></select>
+        <select class="input" id="fCompany"><option value="all">すべての求人アカウント</option></select>
         <select class="input" id="fSource">
           <option value="all">すべての媒体</option>
           <option>Indeed</option><option>エアワーク</option><option>SNS</option>
@@ -55,7 +55,7 @@
             <thead>
               <tr>
                 <th>候補者</th><th>年齢</th><th>エリア</th><th>経験</th>
-                <th>応募媒体 / 会社</th><th>架電状況</th><th>ステータス</th><th>応募日</th>
+                <th>求人アカウント / 媒体</th><th>架電状況</th><th>ステータス</th><th>応募日</th>
               </tr>
             </thead>
             <tbody id="rows"></tbody>
@@ -95,8 +95,8 @@
         <td>${c.age}歳</td>
         <td class="small">${c.area}</td>
         <td>${c.exp ? '<span class="chip chip--brand">経験者</span>' : '<span class="chip">未経験</span>'}</td>
-        <td><div class="small" style="font-weight:700">${c.source}</div>
-          <span class="ctag"><span class="swatch" style="background:${co.color}"></span>${co.name}</span></td>
+        <td><span class="ctag"><span class="swatch" style="background:${co.color}"></span>${co.name}</span>
+          <div class="cell-sub">${c.source}</div></td>
         <td>${UI.callStages(c.calls)}</td>
         <td>${UI.statusBadge(c.status)}</td>
         <td class="small muted">${c.appliedAt.replace('2026-','')}</td>
@@ -121,7 +121,7 @@
           <label class="fld"><span>年齢</span><input class="input" id="n_age" type="number" placeholder="35"></label>
           <label class="fld"><span>電話番号</span><input class="input" id="n_tel" placeholder="090-0000-0000"></label>
           <label class="fld span-2"><span>住所</span><input class="input" id="n_area" placeholder="東京都◯◯区"></label>
-          <label class="fld"><span>会社（求人アカウント）</span><select class="input" id="n_co">${opts}</select></label>
+          <label class="fld"><span>求人アカウント</span><select class="input" id="n_co">${opts}</select></label>
           <label class="fld"><span>応募媒体</span><select class="input" id="n_src"><option>Indeed</option><option>エアワーク</option><option>SNS</option></select></label>
           <label class="fld span-2"><span>経験</span><select class="input" id="n_exp"><option value="false">未経験</option><option value="true">経験者</option></select></label>
         </div>
