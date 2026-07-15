@@ -10,7 +10,7 @@
     { key: "calls",       href: "calls.html",        icon: "📞", label: "架電管理" },
     { key: "interviews",  href: "interviews.html",   icon: "🤝", label: "面接管理" },
     { section: "稼働・車両" },
-    { key: "fleet",       href: "vehicles.html",     icon: "🚚", label: "車両・ドライバー" },
+    { key: "fleet",       href: "vehicles.html",     icon: "🚚", label: "車両管理" },
     { section: "取引先" },
     { key: "negotiations",href: "negotiations.html", icon: "💬", label: "商談ログ" },
     { key: "companies",   href: "companies.html",    icon: "🏢", label: "荷主・会社" },

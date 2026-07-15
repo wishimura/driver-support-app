@@ -12,11 +12,6 @@
   <div class="main">
     <header id="topbar"></header>
     <div class="content">
-      <div class="fleet-tabs mb-16">
-        <a href="vehicles.html" class="is-active">🚐 車両</a>
-        <a href="drivers.html">🚚 ドライバー</a>
-      </div>
-
       <div class="page-head">
         <div>
           <h1>車両管理</h1>
@@ -58,7 +53,7 @@
 <script src="assets/js/data.js"></script>
 <script src="assets/js/app.js"></script>
 <script>
-  Shell.init("fleet", { title: "車両・ドライバー" });
+  Shell.init("fleet", { title: "車両管理" });
   const db = DB.get();
   let tab = "all", lessor = "all";
   const lessors = [...new Set(db.vehicles.map(v=>v.lessor))];

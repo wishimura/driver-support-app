@@ -41,7 +41,7 @@
     const curStep = steps.findIndex(s => !s.done);
 
     content.innerHTML = `
-      <div class="breadcrumb"><a href="drivers.html">ドライバー</a> › ${d.name}</div>
+      <div class="breadcrumb"><a href="vehicles.html">車両管理</a> › <a href="drivers.html">採用ドライバー</a> › ${d.name}</div>
       <div class="page-head">
         <div class="person">${UI.avatar(d.name)}
           <div><h1 style="margin:0">${d.name} <span class="muted" style="font-size:14px;font-weight:600">${d.age}歳</span></h1>
