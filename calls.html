@@ -61,11 +61,11 @@
 <script>
   Shell.init("calls", { title: "架電管理" });
   const db = DB.get();
-  let tab = "todo", company = "all";
+  let tab = "todo", account = "all";
 
   const cSel = document.getElementById("fCompany");
-  db.companies.forEach(co => cSel.insertAdjacentHTML("beforeend", `<option value="${co.id}">${co.name}</option>`));
-  cSel.onchange = e => { company = e.target.value; render(); };
+  DB.accounts.forEach(a => cSel.insertAdjacentHTML("beforeend", `<option value="${a}">${a}</option>`));
+  cSel.onchange = e => { account = e.target.value; render(); };
   document.querySelectorAll("#tab button").forEach(b => b.onclick = () => { tab = b.dataset.t; document.querySelectorAll("#tab button").forEach(x=>x.classList.toggle("is-active",x===b)); render(); });
 
   function lastResult(c){ return c.calls.length ? c.calls[c.calls.length-1].r : null; }
@@ -98,18 +98,17 @@
       <div class="card kpi"><div class="kpi__icon" style="background:var(--${x.c==='gray'?'gray-soft':x.c+'-soft'});color:var(--${x.c==='gray'?'ink-3':x.c})">${x.i}</div>
       <div class="kpi__label">${x.l}</div><div class="kpi__value">${x.v}</div></div>`).join("");
 
-    let list = db.candidates.filter(c => company==="all" || c.company===company);
+    let list = db.candidates.filter(c => account==="all" || c.source===account);
     if (tab === "todo") list = list.filter(c => (c.status==="new") || (c.status==="calling" && lastResult(c)==="none"));
     else if (tab === "ok") list = list.filter(c => c.calls.some(x=>x.r==="ok"));
     else if (tab === "none") list = list.filter(c => lastResult(c)==="none");
 
     document.getElementById("rows").innerHTML = list.length ? list.map(c => {
-      const co = DB.company(db, c.company);
       const canCall = c.calls.length < 3 && !["contract","ng","interviewed","interview"].includes(c.status);
       return `<tr>
         <td onclick="location.href='candidate-detail.html?id=${c.id}'"><div class="person">${UI.avatar(c.name)}
-          <div><div class="cell-main">${c.name}</div><div class="cell-sub">${c.age}歳・${c.source}</div></div></div></td>
-        <td><span class="ctag"><span class="swatch" style="background:${co.color}"></span>${co.name}</span></td>
+          <div><div class="cell-main">${c.name}</div><div class="cell-sub">${c.age}歳</div></div></div></td>
+        <td>${UI.accountTag(c.source)}</td>
         <td class="small">${c.tel}</td>
         <td style="text-align:center">${pill(c,1)}</td>
         <td style="text-align:center">${pill(c,2)}</td>

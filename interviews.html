@@ -70,12 +70,11 @@
     list = list.sort((a,b)=> (a.interview.date+a.interview.time).localeCompare(b.interview.date+b.interview.time));
 
     document.getElementById("rows").innerHTML = list.length ? list.map(c => {
-      const co = DB.company(db, c.company);
       const iv = c.interview;
       return `<tr>
         <td onclick="location.href='candidate-detail.html?id=${c.id}'"><div class="person">${UI.avatar(c.name)}
           <div><div class="cell-main">${c.name}</div><div class="cell-sub">${c.age}歳・${c.exp?'経験者':'未経験'}</div></div></div></td>
-        <td><span class="ctag"><span class="swatch" style="background:${co.color}"></span>${co.name}</span></td>
+        <td>${UI.accountTag(c.source)}</td>
         <td><b>${iv.date}</b> <span class="muted">${iv.time}</span></td>
         <td>${iv.mode==="来社"?UI.badge("info","来社"):UI.badge("purple","リモート")}</td>
         <td>${iv.result ? (iv.result==="pass"?UI.badge("ok","合格"):UI.badge("danger","不合格")) : UI.badge("gray","結果待ち")}</td>

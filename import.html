@@ -36,8 +36,7 @@
             <div class="card__body">
               <label class="fld"><span>このCSVはどの求人アカウントのものですか？</span>
                 <select class="input" id="impCo" style="width:100%"></select></label>
-              <div class="muted small mt-8" id="impHint"></div>
-              <div class="chip chip--brand mt-16">アカウントを選ぶと媒体も自動で決まります。取り込んだ候補者は「どの求人アカウント経由か」で絞り込めます。</div>
+              <div class="chip chip--brand mt-16">取り込んだ候補者は、選んだ求人アカウントで絞り込めます。</div>
               <div class="chip mt-8">名前・年齢・住所・電話番号は共通の必須項目。どのアカウントのCSVでも取込可能です。</div>
             </div>
           </div>
@@ -77,7 +76,6 @@
           <div class="card__body">
             <div class="row mb-16 wrap">
               <span class="chip">求人アカウント：<b id="pvCo">—</b></span>
-              <span class="chip">媒体：<b id="pvSrc">—</b></span>
               <span class="badge badge--ok"><span class="dot"></span>必須項目マッチOK</span>
             </div>
             <div class="table-wrap"><table class="tbl">
@@ -114,10 +112,7 @@
   Shell.init("import", { title: "CSVインポート" });
   const db = DB.get();
   const coSel = document.getElementById("impCo");
-  db.companies.forEach(co => coSel.insertAdjacentHTML("beforeend", `<option value="${co.id}">${co.name} ・ ${co.platform}</option>`));
-  const hint = document.getElementById("impHint");
-  function updateHint() { const co = DB.company(db, coSel.value); hint.innerHTML = `媒体：<b>${co.platform}</b>（このアカウントから取り込まれた候補者は、この求人アカウントで絞り込めます）`; }
-  coSel.onchange = updateHint; updateHint();
+  DB.accounts.forEach(a => coSel.insertAdjacentHTML("beforeend", `<option value="${a}">${a}</option>`));
 
   let parsed = [];
 
@@ -152,9 +147,7 @@
   window.loadSample = function() { parsed = sample.map(x => x.map(String)); goPreview(); };
 
   function goPreview() {
-    const co = DB.company(db, coSel.value);
-    document.getElementById("pvCo").textContent = co.name;
-    document.getElementById("pvSrc").textContent = co.platform;
+    document.getElementById("pvCo").textContent = coSel.value;
     document.getElementById("prevCount").textContent = `${parsed.length} 件を検出`;
     document.getElementById("prevRows").innerHTML = parsed.map((r,i) => `
       <tr>
@@ -168,7 +161,7 @@
 
   window.doImport = function() {
     const checks = [...document.querySelectorAll("#prevRows input[type=checkbox]")];
-    const co = coSel.value, src = DB.company(db, co).platform;
+    const acc = coSel.value;   // 求人アカウント＝媒体
     let n = 0;
     checks.forEach(ch => {
       if (!ch.checked) return;
@@ -176,14 +169,14 @@
       db.candidates.unshift({
         id:"cand_"+Math.random().toString(36).slice(2,8),
         name:r[0]||"", kana:r[1]||"", age:+r[2]||0, area:r[3]||"", tel:r[4]||"",
-        exp:/あり|経験|true/i.test(r[5]||""), company:co, source:src, status:"new", calls:[],
+        exp:/あり|経験|true/i.test(r[5]||""), company:null, source:acc, status:"new", calls:[],
         appliedAt:"2026-07-15", note:"", interview:null
       });
       n++;
     });
     DB.save(db);
     document.getElementById("doneMsg").textContent = `${n}名の候補者を登録しました`;
-    document.getElementById("doneSub").textContent = `${document.getElementById("pvCo").textContent}（${src}）に取り込みました。架電を開始できます。`;
+    document.getElementById("doneSub").textContent = `求人アカウント「${acc}」に取り込みました。架電を開始できます。`;
     setStep(3);
   };
 

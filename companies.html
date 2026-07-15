@@ -15,7 +15,7 @@
       <div class="page-head">
         <div>
           <h1>荷主・会社</h1>
-          <p>荷主（佐川・ヤマト等）と、その下請けの「会社」＝求人アカウントを管理</p>
+          <p>荷主（佐川・ヤマト等）と、その下請けの「会社」（ドライバー配属・商談の単位）を管理</p>
         </div>
         <div class="page-head__actions">
           <button class="btn btn--primary" onclick="openNew()">＋ 会社を追加</button>
@@ -24,17 +24,17 @@
 
       <div class="card mb-16" style="background:linear-gradient(90deg,var(--brand-soft),#fff)">
         <div class="card__body row wrap" style="gap:22px">
-          <div><span class="muted small">用語</span><div><b>荷主</b> = 佐川・ヤマト等の元請け　→　<b>会社</b> = 荷主の下請け（自社が仕事をもらう単位／求人アカウント）　→　<b>ドライバー</b></div></div>
+          <div><span class="muted small">用語</span><div><b>荷主</b> = 佐川・ヤマト等の元請け　→　<b>会社</b> = 荷主の下請け（自社が仕事をもらう単位）　→　<b>ドライバー</b></div></div>
         </div>
       </div>
 
       <div class="grid grid--3" id="shipperCards"></div>
 
       <div class="card mt-16">
-        <div class="card__head"><h3>会社一覧（求人アカウント）</h3><span class="muted small" style="margin-left:auto" id="count"></span></div>
+        <div class="card__head"><h3>会社一覧</h3><span class="muted small" style="margin-left:auto" id="count"></span></div>
         <div class="table-wrap">
           <table class="tbl">
-            <thead><tr><th>会社</th><th>荷主</th><th>求人アカウント</th><th>稼働ドライバー</th><th>募集中</th></tr></thead>
+            <thead><tr><th>会社</th><th>荷主</th><th>稼働ドライバー</th><th>募集中</th></tr></thead>
             <tbody id="rows"></tbody>
           </table>
         </div>
@@ -72,7 +72,6 @@
       return `<tr>
         <td><span class="ctag"><span class="swatch" style="background:${co.color}"></span><b>${co.name}</b></span></td>
         <td><span class="ctag"><span class="swatch" style="background:${sh.color}"></span>${sh.name}</span></td>
-        <td>${co.account.split(/[\/／]/).map(a=>`<span class="chip">${a.trim()}</span>`).join(" ")}</td>
         <td><b>${co.drivers}</b>名</td>
         <td>${co.open ? `<span class="badge badge--info"><span class="dot"></span>${co.open}件募集中</span>` : '<span class="muted small">—</span>'}</td>
       </tr>`;
@@ -87,7 +86,6 @@
         <label class="fld span-2"><span>会社名</span><input class="input" id="n_name" placeholder="◯◯運送 第一営業所"></label>
         <label class="fld"><span>荷主</span><select class="input" id="n_sh">${shOpts}</select></label>
         <label class="fld"><span>募集中件数</span><input class="input" type="number" id="n_open" value="3"></label>
-        <label class="fld span-2"><span>求人アカウント（媒体）</span><input class="input" id="n_acc" placeholder="Indeed / エアワーク"></label>
       </div></div>
       <div class="modal__foot"><button class="btn" data-close>キャンセル</button><button class="btn btn--primary" onclick="saveNew()">追加する</button></div>
     `);
@@ -97,7 +95,7 @@
     if (!g("n_name")) { Toast.show("会社名を入力してください","warn"); return; }
     const palette = ["#1f6feb","#17915c","#c47f04","#7b52d6","#d1443b","#0f9b9b","#e0692b"];
     db.companies.push({ id:"co_"+Math.random().toString(36).slice(2,7), name:g("n_name"), shipper:g("n_sh"),
-      color:palette[db.companies.length % palette.length], account:g("n_acc")||"Indeed", drivers:0, open:+g("n_open")||0 });
+      color:palette[db.companies.length % palette.length], drivers:0, open:+g("n_open")||0 });
     DB.save(db); Modal.close(); render(); Toast.show("会社を追加しました");
   };
 

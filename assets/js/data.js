@@ -4,7 +4,7 @@
    DB接続は不要。初回ロード時にシードデータを投入します。
 ================================================================ */
 (function () {
-  const KEY = "dorasapo_mock_v2";
+  const KEY = "dorasapo_mock_v3";
 
   // ---- 荷主（Sagawa / Yamato など） ----
   const shippers = [
@@ -13,16 +13,15 @@
     { id: "sh3", name: "Amazon",   color: "#c47f04" },
   ];
 
-  // ---- 求人アカウント（社内では「会社」と呼称。Indeed/エアワーク等のアカウント単位） ----
-  //   platform … そのアカウントの応募媒体（単一）。CSVはアカウント単位で取り込む。
+  // ---- 会社（荷主の下請け＝ドライバー配属・商談の単位）。求人アカウント（媒体）とは独立 ----
   const companies = [
-    { id: "co1", name: "関東ロジ第一営業所", shipper: "sh1", color: "#1f6feb", platform: "Indeed",    account: "Indeed",    drivers: 42, open: 8 },
-    { id: "co2", name: "城南デリバリー",     shipper: "sh1", color: "#7b52d6", platform: "Indeed",    account: "Indeed",    drivers: 28, open: 5 },
-    { id: "co3", name: "湾岸トランスポート", shipper: "sh2", color: "#17915c", platform: "エアワーク", account: "エアワーク", drivers: 33, open: 6 },
-    { id: "co4", name: "北関東配送センター", shipper: "sh2", color: "#c47f04", platform: "SNS",       account: "SNS",       drivers: 19, open: 3 },
-    { id: "co5", name: "TOKYOラストワンマイル", shipper: "sh3", color: "#d1443b", platform: "Indeed", account: "Indeed",   drivers: 24, open: 7 },
-    { id: "co6", name: "多摩エリア運送",     shipper: "sh1", color: "#0f9b9b", platform: "エアワーク", account: "エアワーク", drivers: 15, open: 2 },
-    { id: "co7", name: "埼玉第二センター",   shipper: "sh2", color: "#e0692b", platform: "Indeed",    account: "Indeed",    drivers: 11, open: 4 },
+    { id: "co1", name: "関東ロジ第一営業所", shipper: "sh1", color: "#1f6feb", drivers: 42, open: 8 },
+    { id: "co2", name: "城南デリバリー",     shipper: "sh1", color: "#7b52d6", drivers: 28, open: 5 },
+    { id: "co3", name: "湾岸トランスポート", shipper: "sh2", color: "#17915c", drivers: 33, open: 6 },
+    { id: "co4", name: "北関東配送センター", shipper: "sh2", color: "#c47f04", drivers: 19, open: 3 },
+    { id: "co5", name: "TOKYOラストワンマイル", shipper: "sh3", color: "#d1443b", drivers: 24, open: 7 },
+    { id: "co6", name: "多摩エリア運送",     shipper: "sh1", color: "#0f9b9b", drivers: 15, open: 2 },
+    { id: "co7", name: "埼玉第二センター",   shipper: "sh2", color: "#e0692b", drivers: 11, open: 4 },
   ];
 
   // ---- 採用ステータス ----
@@ -117,6 +116,19 @@
       status:"returned", driver:null, monthly:58000, repairFrom:"2026-07-01", repairTo:"2026-07-06", repairCost:34000 },
   ];
 
+  // ---- 車両ログ（架電ログのように履歴を残す）。既存車両は各項目から初期ログを生成 ----
+  const yen = n => "¥" + Number(n || 0).toLocaleString("ja-JP");
+  vehicles.forEach(v => {
+    const dName = v.driver ? (drivers.find(d => d.id === v.driver) || {}).name : null;
+    const logs = [];
+    logs.push({ at: v.leaseStart, dot: "", h: "新車を登録・リース開始", body: `${v.lessor} ／ 月額 ${yen(v.monthly)}`, by: "車両管理" });
+    if (dName) logs.push({ at: v.leaseStart, dot: "ok", h: "ドライバーへ貸与・稼働開始", body: dName, by: "車両管理" });
+    if (v.repairFrom) logs.push({ at: v.repairFrom, dot: "warn", h: "修理工場へ入庫", body: v.repairTo ? `出庫予定 ${v.repairTo}` : "作業中", by: "車両管理" });
+    if (v.repairTo)   logs.push({ at: v.repairTo,   dot: "ok",   h: "修理完了・出庫", body: `修理費用 ${yen(v.repairCost)}`, by: "車両管理" });
+    if (v.status === "returned") logs.push({ at: v.repairTo || v.leaseEnd, dot: "gray", h: "返却", body: "ドライバー割当を解除", by: "車両管理" });
+    v.logs = logs;
+  });
+
   // ---- 商談ログ（会社ごと） ----
   const negotiations = [
     { id:"neg1", company:"co5", shipper:"sh3", date:"2026-07-11", who:"Amazon DSP 統括 / 山口様", topic:"8月からの増車20台の稼働可否について協議。ドライバー確保状況を報告。", next:"2026-07-25", owner:"営業 佐々木" },
@@ -153,6 +165,10 @@
     get: load,
     save,
     reset() { localStorage.removeItem(KEY); },
+    // 求人アカウント（＝応募媒体。1媒体1アカウント運用）
+    accounts: ["Indeed", "エアワーク", "SNS"],
+    // 応募媒体ごとの表示色
+    accountColor: { "Indeed":"#1f6feb", "エアワーク":"#17915c", "SNS":"#c47f04" },
     // static maps that don't change
     statusMap,
     driverStatus: {

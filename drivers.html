@@ -12,6 +12,11 @@
   <div class="main">
     <header id="topbar"></header>
     <div class="content">
+      <div class="fleet-tabs mb-16">
+        <a href="vehicles.html">🚐 車両</a>
+        <a href="drivers.html" class="is-active">🚚 ドライバー</a>
+      </div>
+
       <div class="page-head">
         <div>
           <h1>ドライバー管理</h1>
@@ -53,7 +58,7 @@
 <script src="assets/js/data.js"></script>
 <script src="assets/js/app.js"></script>
 <script>
-  Shell.init("drivers", { title: "ドライバー管理" });
+  Shell.init("fleet", { title: "車両・ドライバー" });
   const db = DB.get();
   let tab = "all", company = "all";
   const cSel = document.getElementById("fCompany");

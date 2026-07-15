@@ -30,8 +30,6 @@
   function persist() { DB.save(db); }
 
   function render() {
-    const co = DB.company(db, c.company);
-    const sh = DB.shipper(db, co.shipper);
     // flow steps
     const order = ["new","calling","interview","interviewed","contract"];
     const curIdx = c.status === "ng" ? -1 : order.indexOf(c.status);
@@ -113,9 +111,9 @@
             <div class="card__head"><h3>応募元</h3></div>
             <div class="card__body">
               <dl class="dl">
-                <dt>求人アカウント</dt><dd><span class="ctag"><span class="swatch" style="background:${co.color}"></span>${co.name}</span></dd>
-                <dt>媒体</dt><dd>${co.platform}</dd>
-                <dt>荷主</dt><dd><span class="ctag"><span class="swatch" style="background:${sh.color}"></span>${sh.name}</span></dd>
+                <dt>求人アカウント</dt><dd>${UI.accountTag(c.source)}</dd>
+                <dt>応募日</dt><dd>${c.appliedAt}</dd>
+                ${c.company ? `<dt>配属先の会社</dt><dd>${UI.companyTag(db, c.company)}</dd>` : ``}
               </dl>
             </div>
           </div>
@@ -175,7 +173,7 @@
     if (c.interview) items.push({ dot:"", h:`面接設定（${c.interview.mode}）`, m:c.interview.date });
     if (c.interview && c.interview.result) items.push({ dot: c.interview.result==="pass"?"ok":"danger", h:`面接${c.interview.result==="pass"?"合格":"不合格"}`, m:c.interview.date });
     if (c.status === "contract") items.push({ dot:"ok", h:"契約 → ドライバー登録", m:"2026-07-15" });
-    document.getElementById("tlBox").innerHTML = `<div class="timeline">` + items.reverse().map(i =>
+    document.getElementById("tlBox").innerHTML = `<div class="timeline">` + items.map(i =>
       `<div class="tl-item"><span class="tl-dot ${i.dot}"></span><h4>${i.h}</h4><div class="tl-meta">${i.m}</div></div>`).join("") + `</div>`;
   }
 
@@ -224,7 +222,7 @@
     c.interview = { date: document.getElementById("iv_date").value, time: document.getElementById("iv_time").value, mode: document.getElementById("iv_mode").value, result: null, memo:"" };
     c.status = "interview";
     // add to schedule
-    db.schedule.push({ id:"ev_"+Math.random().toString(36).slice(2,7), date:c.interview.date, time:c.interview.time, type:"interview", title:"面接："+c.name, who:DB.company(db,c.company).name, mode:c.interview.mode });
+    db.schedule.push({ id:"ev_"+Math.random().toString(36).slice(2,7), date:c.interview.date, time:c.interview.time, type:"interview", title:"面接："+c.name, who:c.source, mode:c.interview.mode });
     persist(); Modal.close(); render(); Toast.show("面接を設定し、カレンダーに登録しました");
   };
 
@@ -249,12 +247,13 @@
   window.markNG = function() { c.status = "ng"; persist(); render(); Toast.show("見送りにしました","warn"); };
 
   window.toContract = function() {
-    const co = DB.company(db, c.company);
+    const coOpts = db.companies.map(x => `<option value="${x.id}"${c.company===x.id?' selected':''}>${x.name}</option>`).join("");
     Modal.open(`
       <div class="modal__head"><h3>契約 → ドライバー登録</h3><span class="close" data-close>×</span></div>
       <div class="modal__body">
-        <p class="muted mb-16">${c.name} さんを契約し、ドライバーとして登録します。納車日・研修日を設定してください。</p>
+        <p class="muted mb-16">${c.name} さんを契約し、ドライバーとして登録します。配属先の会社・納車日・研修日を設定してください。</p>
         <div class="form-grid">
+          <label class="fld span-2"><span>配属先の会社（荷主の下請け）</span><select class="input" id="ct_co">${coOpts}</select></label>
           <label class="fld"><span>契約日</span><input class="input" type="date" id="ct_date" value="2026-07-15"></label>
           <label class="fld"><span>納車予定日</span><input class="input" type="date" id="ct_deliv" value="2026-07-28"></label>
           <label class="fld span-2"><span>研修</span>
@@ -267,6 +266,7 @@
   };
   window.saveContract = function() {
     c.status = "contract";
+    c.company = document.getElementById("ct_co").value;   // 配属先の会社を確定
     const train = document.getElementById("ct_train").value === "need";
     const drv = {
       id:"drv_"+Math.random().toString(36).slice(2,7), name:c.name, kana:c.kana, age:c.age, company:c.company, exp:c.exp,

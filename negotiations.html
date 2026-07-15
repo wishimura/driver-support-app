@@ -24,7 +24,7 @@
 
       <div class="filters">
         <select class="input" id="fShipper"><option value="all">すべての荷主</option></select>
-        <select class="input" id="fCompany"><option value="all">すべての会社</option></select>
+        <div id="fCompany"></div>
         <div class="row" style="margin-left:auto"><span class="muted small" id="count"></span></div>
       </div>
 
@@ -54,15 +54,24 @@
   Shell.init("negotiations", { title: "商談ログ" });
   const db = DB.get();
   let shipper = "all", company = "all";
-  const shSel = document.getElementById("fShipper"), coSel = document.getElementById("fCompany");
+  const shSel = document.getElementById("fShipper");
   db.shippers.forEach(s => shSel.insertAdjacentHTML("beforeend", `<option value="${s.id}">${s.name}</option>`));
-  db.companies.forEach(c => coSel.insertAdjacentHTML("beforeend", `<option value="${c.id}">${c.name}</option>`));
   shSel.onchange = e => { shipper = e.target.value; render(); };
-  coSel.onchange = e => { company = e.target.value; render(); };
+
+  // 会社フィルター（検索可能＋新規登録）
+  function coItems() {
+    return [{ value:"all", label:"すべての会社" }].concat(
+      db.companies.map(c => ({ value:c.id, label:c.name, swatch:c.color })));
+  }
+  const coCombo = Combo.create(document.getElementById("fCompany"), {
+    items: coItems(), value: "all", placeholder: "会社を選択",
+    onChange: v => { company = v; render(); },
+    addLabel: "新規会社を登録", onAdd: () => openNewCompany(),
+  });
 
   function render() {
     let list = db.negotiations.filter(n => (shipper==="all"||n.shipper===shipper) && (company==="all"||n.company===company))
-      .sort((a,b)=> b.date.localeCompare(a.date));
+      .sort((a,b)=> a.date.localeCompare(b.date));
     document.getElementById("count").textContent = `${list.length} 件`;
 
     document.getElementById("list").innerHTML = list.length ? `<div class="timeline">` + list.map(n => {
@@ -116,6 +125,31 @@
     db.negotiations.unshift({ id:"neg_"+Math.random().toString(36).slice(2,7), company:g("n_co"), shipper:g("n_sh"),
       date:g("n_date"), who:g("n_who"), topic:g("n_topic"), next:g("n_next")||null, owner:g("n_owner") });
     DB.save(db); Modal.close(); render(); Toast.show("商談を記録しました");
+  };
+
+  // ドロップダウンから新規会社を登録
+  window.openNewCompany = function() {
+    const shOpts = db.shippers.map(s=>`<option value="${s.id}">${s.name}</option>`).join("");
+    Modal.open(`
+      <div class="modal__head"><h3>新規会社を登録</h3><span class="close" data-close>×</span></div>
+      <div class="modal__body"><div class="form-grid">
+        <label class="fld span-2"><span>会社名</span><input class="input" id="nc_name" placeholder="◯◯運送 第一営業所"></label>
+        <label class="fld span-2"><span>荷主</span><select class="input" id="nc_sh">${shOpts}</select></label>
+      </div></div>
+      <div class="modal__foot"><button class="btn" data-close>キャンセル</button><button class="btn btn--primary" onclick="saveNewCompany()">登録する</button></div>
+    `);
+  };
+  window.saveNewCompany = function() {
+    const g = id => document.getElementById(id).value;
+    if (!g("nc_name")) { Toast.show("会社名を入力してください","warn"); return; }
+    const palette = ["#1f6feb","#17915c","#c47f04","#7b52d6","#d1443b","#0f9b9b","#e0692b"];
+    const co = { id:"co_"+Math.random().toString(36).slice(2,7), name:g("nc_name"), shipper:g("nc_sh"),
+      color:palette[db.companies.length % palette.length], drivers:0, open:0 };
+    db.companies.push(co);
+    DB.save(db);
+    coCombo.setItems(coItems());
+    coCombo.setValue(co.id);   // 登録した会社で絞り込み
+    Modal.close(); Toast.show("会社を登録しました");
   };
 
   render();

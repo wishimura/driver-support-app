@@ -18,7 +18,7 @@
 <script src="assets/js/data.js"></script>
 <script src="assets/js/app.js"></script>
 <script>
-  Shell.init("drivers", { title: "ドライバー詳細" });
+  Shell.init("fleet", { title: "ドライバー詳細" });
   const db = DB.get();
   const id = UI.qp("id");
   let d = db.drivers.find(x => x.id === id);
@@ -122,7 +122,8 @@
     if (d.cancelAt) items.push({ dot:"danger", h:"解除申請を受付（2ヶ月前宣言）", m:d.cancelAt });
     if (d.cancelEffectiveAt) items.push({ dot:"danger", h:"契約終了予定日", m:d.cancelEffectiveAt });
     logs.forEach(l => items.push(l));
-    document.getElementById("tl").innerHTML = `<div class="timeline">` + items.reverse().map(i=>
+    items.sort((a,b)=> (a.m||"").localeCompare(b.m||""));
+    document.getElementById("tl").innerHTML = `<div class="timeline">` + items.map(i=>
       `<div class="tl-item"><span class="tl-dot ${i.dot}"></span><h4>${i.h}</h4><div class="tl-meta">${i.m}${i.by?' ・ '+i.by:''}</div>${i.body?`<div class="tl-body">${i.body}</div>`:''}</div>`).join("") + `</div>`;
   }
 
@@ -147,6 +148,8 @@
     const vid = document.getElementById("v").value;
     const v = DB.vehicle(db, vid);
     v.status = "active"; v.driver = d.id; d.vehicle = vid;
+    if (!v.logs) v.logs = [];
+    v.logs.push({ at:"2026-07-15", dot:"ok", h:"ドライバーへ貸与・稼働開始", body:d.name, by:"佐々木" });
     logs.push({dot:"ok",h:"車両を割当",m:"2026-07-15",body:v.plate}); persist(); render(); Toast.show("車両を割当てました");
   };
 
