@@ -4,7 +4,7 @@
    DB接続は不要。初回ロード時にシードデータを投入します。
 ================================================================ */
 (function () {
-  const KEY = "dorasapo_mock_v3";
+  const KEY = "dorasapo_mock_v4";
 
   // ---- 荷主（Sagawa / Yamato など） ----
   const shippers = [
@@ -93,8 +93,8 @@
       vehicle:"veh6", tel:"090-7788-9900", cancelAt:null, cancelEffectiveAt:null },
   ];
 
-  // ---- 車両（リース → 稼働 → 返却 → 修理） ----
-  // status: active(稼働中) / idle(空き) / returned(返却済) / repair(修理中)
+  // ---- 車両（リース → 稼働 → 空き/修理） ----
+  // status: active(稼働中) / idle(空き) / repair(修理中)
   const vehicles = [
     { id:"veh1", plate:"品川 800 あ 12-34", model:"日野 デュトロ", lessor:"オリックス自動車", leaseStart:"2025-10-01", leaseEnd:"2028-09-30",
       status:"active", driver:"drv3", monthly:68000, repairFrom:null, repairTo:null, repairCost:null },
@@ -113,7 +113,7 @@
     { id:"veh8", plate:"足立 800 や 55-66", model:"日野 デュトロ", lessor:"三井住友トラスト", leaseStart:"2023-12-01", leaseEnd:"2026-11-30",
       status:"repair", driver:null, monthly:68000, repairFrom:"2026-07-08", repairTo:"2026-07-18", repairCost:82000 },
     { id:"veh9", plate:"川口 800 ゆ 77-88", model:"トヨタ ハイエース", lessor:"オリックス自動車", leaseStart:"2024-05-01", leaseEnd:"2026-07-31",
-      status:"returned", driver:null, monthly:58000, repairFrom:"2026-07-01", repairTo:"2026-07-06", repairCost:34000 },
+      status:"idle", driver:null, monthly:58000, repairFrom:"2026-07-01", repairTo:"2026-07-06", repairCost:34000 },
   ];
 
   // ---- 車両ログ（架電ログのように履歴を残す）。既存車両は各項目から初期ログを生成 ----
@@ -125,7 +125,6 @@
     if (dName) logs.push({ at: v.leaseStart, dot: "ok", h: "ドライバーへ貸与・稼働開始", body: dName, by: "車両管理" });
     if (v.repairFrom) logs.push({ at: v.repairFrom, dot: "warn", h: "修理工場へ入庫", body: v.repairTo ? `出庫予定 ${v.repairTo}` : "作業中", by: "車両管理" });
     if (v.repairTo)   logs.push({ at: v.repairTo,   dot: "ok",   h: "修理完了・出庫", body: `修理費用 ${yen(v.repairCost)}`, by: "車両管理" });
-    if (v.status === "returned") logs.push({ at: v.repairTo || v.leaseEnd, dot: "gray", h: "返却", body: "ドライバー割当を解除", by: "車両管理" });
     v.logs = logs;
   });
 
@@ -183,7 +182,6 @@
       active:   { label:"稼働中", cls:"ok"     },
       idle:     { label:"空き",   cls:"info"   },
       repair:   { label:"修理中", cls:"warn"   },
-      returned: { label:"返却済", cls:"gray"   },
     },
     company: (db, id) => (db.companies || companies).find(x => x.id === id) || { name:"—", color:"#889", shipper:"" },
     shipper: (db, id) => (db.shippers || shippers).find(x => x.id === id) || { name:"—", color:"#889" },

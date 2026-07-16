@@ -139,7 +139,7 @@
       <div class="modal__body">
         ${idle.length ? `<label class="fld"><span>空き車両</span><select class="input" id="v">
           ${idle.map(v=>`<option value="${v.id}">${v.plate}（${v.model}）</option>`).join("")}</select></label>`
-          : `<div class="empty small">現在、空き車両がありません。車両管理から返却車両を確認してください。</div>`}
+          : `<div class="empty small">現在、空き車両がありません。車両管理で空き・修理状況を確認してください。</div>`}
       </div>
       <div class="modal__foot"><button class="btn" data-close>キャンセル</button>${idle.length?`<button class="btn btn--primary" onclick="saveVeh()">割当てる</button>`:``}</div>
     `);

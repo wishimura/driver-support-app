@@ -155,7 +155,7 @@
   }).join("") + `</div>`;
 
   // Vehicle status donut-ish
-  const vs = ["active","idle","repair","returned"].map(k => ({ k, n: db.vehicles.filter(v=>v.status===k).length, ...DB.vehicleStatus[k]}));
+  const vs = ["active","idle","repair"].map(k => ({ k, n: db.vehicles.filter(v=>v.status===k).length, ...DB.vehicleStatus[k]}));
   const vt = db.vehicles.length;
   document.getElementById("veh-status").innerHTML = `
     <div class="between mb-16"><div><div style="font-size:26px;font-weight:800">${vt}<small class="muted" style="font-size:14px"> 台（サンプル）</small></div><div class="muted small">今月の新規リース 12台</div></div>
