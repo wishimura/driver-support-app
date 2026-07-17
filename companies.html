@@ -17,9 +17,6 @@
           <h1>荷主・会社</h1>
           <p>荷主（佐川・ヤマト等）と、その下請けの「会社」（ドライバー配属・商談の単位）を管理</p>
         </div>
-        <div class="page-head__actions">
-          <button class="btn btn--primary" onclick="openNew()">＋ 会社を追加</button>
-        </div>
       </div>
 
       <div class="card mb-16" style="background:linear-gradient(90deg,var(--brand-soft),#fff)">
@@ -28,13 +25,26 @@
         </div>
       </div>
 
-      <div class="grid grid--3" id="shipperCards"></div>
+      <!-- 荷主一覧 -->
+      <div class="card mb-16">
+        <div class="card__head"><h3>荷主一覧</h3>
+          <span class="muted small" style="margin-left:auto" id="shCount"></span>
+          <button class="btn btn--sm btn--primary" style="margin-left:12px" onclick="openNewShipper()">＋ 荷主を追加</button>
+        </div>
+        <div class="card__body">
+          <div class="grid grid--3" id="shipperCards"></div>
+        </div>
+      </div>
 
-      <div class="card mt-16">
-        <div class="card__head"><h3>会社一覧</h3><span class="muted small" style="margin-left:auto" id="count"></span></div>
+      <!-- 会社一覧 -->
+      <div class="card">
+        <div class="card__head"><h3>会社一覧</h3>
+          <span class="muted small" style="margin-left:auto" id="count"></span>
+          <button class="btn btn--sm btn--primary" style="margin-left:12px" onclick="openNewCompany()">＋ 会社を追加</button>
+        </div>
         <div class="table-wrap">
           <table class="tbl">
-            <thead><tr><th>会社</th><th>荷主</th><th>稼働ドライバー</th><th>募集中</th></tr></thead>
+            <thead><tr><th>会社</th><th>荷主</th></tr></thead>
             <tbody id="rows"></tbody>
           </table>
         </div>
@@ -50,52 +60,66 @@
   const db = DB.get();
 
   function render() {
-    // shipper cards
+    // 荷主カード（会社数のみ表示）
+    document.getElementById("shCount").textContent = `${db.shippers.length} 社`;
     document.getElementById("shipperCards").innerHTML = db.shippers.map(s => {
-      const cos = db.companies.filter(c=>c.shipper===s.id);
-      const drv = cos.reduce((a,c)=>a+c.drivers,0);
-      const open = cos.reduce((a,c)=>a+c.open,0);
+      const cos = db.companies.filter(c=>c.shipper===s.id).length;
       return `<div class="card"><div class="card__body">
-        <div class="row mb-16"><span class="uavatar" style="background:${s.color}">${s.name[0]}</span>
-          <div><b style="font-size:16px">${s.name}</b><div class="muted small">荷主・元請け</div></div></div>
-        <div class="grid grid--3" style="gap:8px;text-align:center">
-          <div><div style="font-size:20px;font-weight:800">${cos.length}</div><div class="muted small">会社</div></div>
-          <div><div style="font-size:20px;font-weight:800">${drv}</div><div class="muted small">ドライバー</div></div>
-          <div><div style="font-size:20px;font-weight:800;color:var(--brand)">${open}</div><div class="muted small">募集中</div></div>
+        <div class="row"><span class="uavatar" style="background:${s.color}">${s.name[0]}</span>
+          <div style="flex:1"><b style="font-size:16px">${s.name}</b><div class="muted small">荷主・元請け</div></div>
+          <div style="text-align:right"><div style="font-size:20px;font-weight:800">${cos}</div><div class="muted small">会社</div></div>
         </div>
       </div></div>`;
     }).join("");
 
+    // 会社一覧
     document.getElementById("count").textContent = `${db.companies.length} 社`;
     document.getElementById("rows").innerHTML = db.companies.map(co => {
       const sh = DB.shipper(db, co.shipper);
       return `<tr>
         <td><span class="ctag"><span class="swatch" style="background:${co.color}"></span><b>${co.name}</b></span></td>
         <td><span class="ctag"><span class="swatch" style="background:${sh.color}"></span>${sh.name}</span></td>
-        <td><b>${co.drivers}</b>名</td>
-        <td>${co.open ? `<span class="badge badge--info"><span class="dot"></span>${co.open}件募集中</span>` : '<span class="muted small">—</span>'}</td>
       </tr>`;
     }).join("");
   }
 
-  window.openNew = function() {
+  const palette = ["#1f6feb","#17915c","#c47f04","#7b52d6","#d1443b","#0f9b9b","#e0692b"];
+
+  // 荷主を追加
+  window.openNewShipper = function() {
+    Modal.open(`
+      <div class="modal__head"><h3>荷主を追加</h3><span class="close" data-close>×</span></div>
+      <div class="modal__body">
+        <label class="fld"><span>荷主名</span><input class="input" id="s_name" placeholder="例：西濃運輸"></label>
+        <div class="chip mt-16">荷主 = 佐川・ヤマト等の元請け。ここに会社（下請け）をぶら下げます。</div>
+      </div>
+      <div class="modal__foot"><button class="btn" data-close>キャンセル</button><button class="btn btn--primary" onclick="saveNewShipper()">追加する</button></div>
+    `);
+  };
+  window.saveNewShipper = function() {
+    const name = document.getElementById("s_name").value.trim();
+    if (!name) { Toast.show("荷主名を入力してください","warn"); return; }
+    db.shippers.push({ id:"sh_"+Math.random().toString(36).slice(2,7), name, color:palette[db.shippers.length % palette.length] });
+    DB.save(db); Modal.close(); render(); Toast.show("荷主を追加しました");
+  };
+
+  // 会社を追加
+  window.openNewCompany = function() {
     const shOpts = db.shippers.map(s=>`<option value="${s.id}">${s.name}</option>`).join("");
     Modal.open(`
       <div class="modal__head"><h3>会社を追加</h3><span class="close" data-close>×</span></div>
       <div class="modal__body"><div class="form-grid">
         <label class="fld span-2"><span>会社名</span><input class="input" id="n_name" placeholder="◯◯運送 第一営業所"></label>
-        <label class="fld"><span>荷主</span><select class="input" id="n_sh">${shOpts}</select></label>
-        <label class="fld"><span>募集中件数</span><input class="input" type="number" id="n_open" value="3"></label>
+        <label class="fld span-2"><span>荷主</span><select class="input" id="n_sh">${shOpts}</select></label>
       </div></div>
-      <div class="modal__foot"><button class="btn" data-close>キャンセル</button><button class="btn btn--primary" onclick="saveNew()">追加する</button></div>
+      <div class="modal__foot"><button class="btn" data-close>キャンセル</button><button class="btn btn--primary" onclick="saveNewCompany()">追加する</button></div>
     `);
   };
-  window.saveNew = function() {
+  window.saveNewCompany = function() {
     const g = id => document.getElementById(id).value;
     if (!g("n_name")) { Toast.show("会社名を入力してください","warn"); return; }
-    const palette = ["#1f6feb","#17915c","#c47f04","#7b52d6","#d1443b","#0f9b9b","#e0692b"];
     db.companies.push({ id:"co_"+Math.random().toString(36).slice(2,7), name:g("n_name"), shipper:g("n_sh"),
-      color:palette[db.companies.length % palette.length], drivers:0, open:+g("n_open")||0 });
+      color:palette[db.companies.length % palette.length], drivers:0, open:0 });
     DB.save(db); Modal.close(); render(); Toast.show("会社を追加しました");
   };
 
